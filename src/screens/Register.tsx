@@ -7,9 +7,11 @@ import {
   Alert,
   ScrollView,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import Config from 'react-native-config';
 import VerificationCodeModal from '../modals/VerificationCodeModal';
+import ExistingUserModal from '../modals/ExistingUserModal';
 
 export default function RegisterScreen({navigation}: any) {
   const [firstName, setFirstName] = useState('');
@@ -23,6 +25,9 @@ export default function RegisterScreen({navigation}: any) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isModalVisible, setModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [existingUsers, setExistingUsers] = useState([]);
+  const [showExistingModal, setShowExistingModal] = useState(false);
 
   const [errors, setErrors] = useState<any>({});
 
@@ -57,11 +62,37 @@ export default function RegisterScreen({navigation}: any) {
   };
 
   const handleRegister = async () => {
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) {return;}
+    setIsLoading(true);
 
     try {
+      const checkRes = await fetch(`${Config.API_BASE_URL}/api/check-user`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          email,
+          contactNumber,
+          firstName,
+          middleName,
+          lastName,
+          username,
+          password,
+        }),
+      });
+
+      const checkData = await checkRes.json();
+
+      if (checkData.exists) {
+        setExistingUsers(checkData.users);
+        setShowExistingModal(true);
+        return;
+      }
+
+      if (checkData.updated) {
+        setModalVisible(true);
+        return;
+      }
+
       const res = await fetch(`${Config.API_BASE_URL}/api/register`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -85,6 +116,8 @@ export default function RegisterScreen({navigation}: any) {
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Something went wrong.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -200,13 +233,27 @@ export default function RegisterScreen({navigation}: any) {
       {errors.confirmPassword && (
         <Text style={styles.error}>{errors.confirmPassword}</Text>
       )}
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Register</Text>
+      <TouchableOpacity
+        style={[styles.button, isLoading && styles.disabledButton]}
+        onPress={handleRegister}
+        disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Register</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate('Login')}>
         <Text style={styles.link}>Already have an account? Login</Text>
       </TouchableOpacity>
+
+      <ExistingUserModal
+        visible={showExistingModal}
+        users={existingUsers}
+        onClose={() => setShowExistingModal(false)}
+      />
+
       <VerificationCodeModal
         email={email}
         visible={isModalVisible}
@@ -298,6 +345,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 12,
+  },
+  disabledButton: {
+    backgroundColor: '#388e3c',
+    opacity: 0.8,
   },
   buttonText: {
     color: '#fff',

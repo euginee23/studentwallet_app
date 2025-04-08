@@ -67,7 +67,7 @@ app.post('/api/register', async (req, res) => {
         middleName,
         lastName,
         email,
-        `+63${contactNumber}`,
+        `0${contactNumber}`,
         username,
         hashedPassword,
       ],
@@ -97,7 +97,7 @@ app.post('/api/register', async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"Inventory System" <${process.env.SMTP_USER}>`,
+      from: `"Student Wallet App" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'Your Verification Code',
       html: `<p>Hello ${firstName},</p><p>Your verification code is:</p><h2>${verificationCode}</h2>`,
@@ -114,6 +114,92 @@ app.post('/api/register', async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+});
+
+// CHECK EXISTING USERS OR UPDATE UNVERIFIED
+app.post('/api/check-user', async (req, res) => {
+  const {
+    email,
+    contactNumber,
+    firstName,
+    middleName,
+    lastName,
+    username,
+    password,
+  } = req.body;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [results] = await connection.query(
+      `SELECT user_id, first_name, last_name, email, contact_number, username, is_verified
+       FROM users
+       WHERE email = ? OR contact_number = ? 
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [email, `+63${contactNumber}`],
+    );
+
+    if (results.length === 0) {
+      return res.json({exists: false});
+    }
+
+    const user = results[0];
+
+    if (user.is_verified) {
+      return res.json({exists: true, users: [user]});
+    } else {
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      await connection.query(
+        'UPDATE users SET first_name = ?, middle_name = ?, last_name = ?, username = ?, password = ? WHERE user_id = ?',
+        [
+          firstName,
+          middleName,
+          lastName,
+          username,
+          hashedPassword,
+          user.user_id,
+        ],
+      );
+
+      const verificationCode = crypto
+        .randomBytes(3)
+        .toString('hex')
+        .toUpperCase();
+
+      await connection.query(
+        `INSERT INTO verification_codes (user_id, verification_code, verification_type) 
+         VALUES (?, ?, ?)`,
+        [user.user_id, verificationCode, 'register'],
+      );
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT, 10),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"Student Wallet App" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: 'Your New Verification Code',
+        html: `<p>Hello ${firstName},</p><p>Your new verification code is:</p><h2>${verificationCode}</h2>`,
+      });
+
+      return res.json({updated: true});
+    }
+  } catch (error) {
+    console.error('Check user error:', error);
+    res.status(500).json({error: 'Server error checking user.'});
+  } finally {
+    if (connection) {connection.release();}
   }
 });
 
@@ -135,20 +221,24 @@ app.post('/api/verify', async (req, res) => {
     const userId = userRows[0].user_id;
 
     const [codeRows] = await connection.query(
-      'SELECT * FROM verification_codes WHERE user_id = ? AND verification_code = ? AND verification_type = \'register\'',
-      [userId, code],
+      `SELECT * FROM verification_codes 
+       WHERE user_id = ? AND verification_type = 'register' 
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [userId],
     );
+
     if (codeRows.length === 0) {
+      return res.status(400).json({error: 'No verification code found.'});
+    }
+
+    const latestCode = codeRows[0].verification_code;
+    if (code.trim().toUpperCase() !== latestCode.toUpperCase()) {
       return res.status(400).json({error: 'Invalid verification code.'});
     }
 
     await connection.query(
       'UPDATE users SET is_verified = TRUE WHERE user_id = ?',
-      [userId],
-    );
-
-    await connection.query(
-      'DELETE FROM verification_codes WHERE user_id = ? AND verification_type = \'register\'',
       [userId],
     );
 
@@ -160,7 +250,9 @@ app.post('/api/verify', async (req, res) => {
     console.error('Verification error:', error);
     res.status(500).json({error: 'Verification failed.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 

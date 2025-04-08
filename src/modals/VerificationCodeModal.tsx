@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import Config from 'react-native-config';
 
@@ -54,72 +56,105 @@ export default function VerificationCodeModal({
     }
   };
 
-  if (!visible) {return null;}
-
   return (
-    <View style={styles.modalContainer}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Enter Verification Code</Text>
-        <TextInput
-          placeholder="Code"
-          style={styles.input}
-          value={code}
-          onChangeText={setCode}
-          autoCapitalize="characters"
-        />
-        <TouchableOpacity style={styles.button} onPress={handleVerify} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Verify'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onClose}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.modalContainer}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Verification Code</Text>
+          <Text style={styles.subtitle}>
+            Enter the code we sent to your email.
+          </Text>
+
+          <TextInput
+            style={styles.codeInput}
+            value={code}
+            onChangeText={setCode}
+            keyboardType="default"
+            autoCapitalize="characters"
+            maxLength={6}
+            placeholder="XXXXXX"
+            placeholderTextColor="#999"
+          />
+
+          <TouchableOpacity
+            style={[styles.button, loading && { opacity: 0.7 }]}
+            onPress={handleVerify}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Verify</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onClose}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   modalContainer: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    zIndex: 1000,
   },
-  modalContent: {
+  card: {
     backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
     width: '100%',
+    padding: 24,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
     textAlign: 'center',
   },
-  input: {
+  subtitle: {
+    fontSize: 14,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  codeInput: {
     borderWidth: 1,
     borderColor: '#ccc',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
+    borderRadius: 10,
+    fontSize: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    textAlign: 'center',
+    letterSpacing: 4,
+    marginBottom: 16,
+    color: '#333',
   },
   button: {
     backgroundColor: '#4caf50',
-    padding: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 16,
   },
   cancelText: {
-    marginTop: 12,
+    marginTop: 18,
     textAlign: 'center',
     color: '#007bff',
+    fontWeight: '500',
   },
 });
