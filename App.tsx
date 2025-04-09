@@ -20,6 +20,7 @@ import HomeScreen from './src/screens/Home';
 import AllowanceScreen from './src/screens/Allowance';
 
 import BottomNavigation from './src/components/BottomNavigation';
+import HeaderProfileButton from './src/components/HeaderProfile';
 import {getUser, getToken} from './src/utils/authStorage';
 
 const Stack = createNativeStackNavigator();
@@ -60,7 +61,9 @@ function App(): React.JSX.Element {
       setIsLoggedIn(!!token && !!user);
 
       const route = navigationRef.getCurrentRoute();
-      if (route) {setCurrentScreen(route.name);}
+      if (route) {
+        setCurrentScreen(route.name);
+      }
     });
 
     return unsubscribe;
@@ -108,7 +111,14 @@ function App(): React.JSX.Element {
           <View style={styles.navigatorWrapper}>
             <Stack.Navigator
               initialRouteName={initialRoute}
-              screenOptions={{animation: 'none'}}>
+              screenOptions={({route}: {route: {name: string}}) => ({
+                animation: 'none',
+                headerRight: () =>
+                  isLoggedIn &&
+                  !['Welcome', 'Login', 'Register'].includes(route.name) ? (
+                    <HeaderProfileButton />
+                  ) : null,
+              })}>
               <Stack.Screen
                 name="Welcome"
                 component={WelcomeScreen}
@@ -145,6 +155,8 @@ function App(): React.JSX.Element {
                 component={HomeScreen}
                 options={{
                   headerTitle: HeaderLogo,
+                  headerRight: () =>
+                    isLoggedIn ? <HeaderProfileButton /> : null,
                   headerStyle: {backgroundColor: '#1E2A38'},
                   headerTitleAlign: 'left',
                   headerTintColor: '#fff',

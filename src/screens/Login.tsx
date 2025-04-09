@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from 'react-native-config';
+import {Image} from 'react-native';
 
 export default function LoginScreen({navigation}: any) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -53,6 +55,7 @@ export default function LoginScreen({navigation}: any) {
 
   return (
     <View style={styles.container}>
+      <Image source={require('../../assets/icon.png')} style={styles.logo} />
       <Text style={styles.title}>Login</Text>
 
       <TextInput
@@ -62,13 +65,20 @@ export default function LoginScreen({navigation}: any) {
         value={username}
         onChangeText={setUsername}
       />
-      <TextInput
-        placeholder="Password"
-        style={styles.input}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputWrapper}>
+        <TextInput
+          placeholder="Password"
+          style={styles.inputField}
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity onPress={() => setShowPassword(prev => !prev)}>
+          <Text style={styles.toggleText}>
+            {showPassword ? 'Hide' : 'Show'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         style={styles.button}
@@ -118,6 +128,34 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    height: 48,
+    backgroundColor: '#fff',
+  },
+  inputField: {
+    flex: 1,
+    height: '100%',
+  },
+  toggleText: {
+    color: '#007bff',
+    fontWeight: '500',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   link: {
     marginTop: 20,
