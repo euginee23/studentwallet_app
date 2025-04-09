@@ -12,13 +12,15 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+
 import WelcomeScreen from './src/screens/Welcome';
 import LoginScreen from './src/screens/Login';
 import RegisterScreen from './src/screens/Register';
-import MainScreen from './src/screens/Main';
-import * as authStorage from './src/utils/authStorage';
-
+import HomeScreen from './src/screens/Home';
 import AllowanceScreen from './src/screens/Allowance';
+
+import BottomNavigation from './src/components/BottomNavigation';
+import {getUser, getToken} from './src/utils/authStorage';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,25 +39,40 @@ function App(): React.JSX.Element {
   const [initialRoute, setInitialRoute] = useState<string | undefined>(
     undefined,
   );
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState('');
   const navigationRef = useNavigationContainerRef();
 
   useEffect(() => {
     const checkLoginStatus = async () => {
-      const token = await authStorage.getToken();
-      setInitialRoute(token ? 'Main' : 'Welcome');
+      const token = await getToken();
+      const user = await getUser();
+      setIsLoggedIn(!!token && !!user);
+      setInitialRoute(token ? 'Home' : 'Welcome');
     };
     checkLoginStatus();
   }, []);
 
   useEffect(() => {
+    const unsubscribe = navigationRef.addListener('state', async () => {
+      const token = await getToken();
+      const user = await getUser();
+      setIsLoggedIn(!!token && !!user);
+
+      const route = navigationRef.getCurrentRoute();
+      if (route) {setCurrentScreen(route.name);}
+    });
+
+    return unsubscribe;
+  }, [navigationRef]);
+
+  useEffect(() => {
     const onBackPress = (): boolean => {
       const currentRoute = navigationRef.getCurrentRoute()?.name;
-
-      if (currentRoute === 'Main') {
+      if (currentRoute === 'Home') {
         BackHandler.exitApp();
         return true;
       }
-
       return false;
     };
 
@@ -63,7 +80,6 @@ function App(): React.JSX.Element {
       'hardwareBackPress',
       onBackPress,
     );
-
     return () => backHandler.remove();
   }, [navigationRef]);
 
@@ -87,62 +103,75 @@ function App(): React.JSX.Element {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor="#1E2A38" />
-      <NavigationContainer ref={navigationRef}>
-        <Stack.Navigator initialRouteName={initialRoute}>
-          <Stack.Screen
-            name="Welcome"
-            component={WelcomeScreen}
-            options={{
-              headerTitle: HeaderLogo,
-              headerStyle: {backgroundColor: '#1E2A38'},
-              headerTitleAlign: 'left',
-              headerBackVisible: false,
-            }}
-          />
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{
-              headerTitle: HeaderLogo,
-              headerStyle: {backgroundColor: '#1E2A38'},
-              headerTitleAlign: 'left',
-              headerBackVisible: true,
-              headerTintColor: '#fff',
-            }}
-          />
-          <Stack.Screen
-            name="Register"
-            component={RegisterScreen}
-            options={{
-              headerTitle: HeaderLogo,
-              headerStyle: {backgroundColor: '#1E2A38'},
-              headerTitleAlign: 'left',
-              headerTintColor: '#fff',
-            }}
-          />
-          <Stack.Screen
-            name="Main"
-            component={MainScreen}
-            options={{
-              headerTitle: HeaderLogo,
-              headerStyle: {backgroundColor: '#1E2A38'},
-              headerTitleAlign: 'left',
-              headerTintColor: '#fff',
-              headerBackVisible: false,
-            }}
-          />
-          <Stack.Screen
-            name="Allowance"
-            component={AllowanceScreen}
-            options={{
-              headerTitle: HeaderLogo,
-              headerStyle: {backgroundColor: '#1E2A38'},
-              headerTitleAlign: 'left',
-              headerTintColor: '#fff',
-            }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <View style={styles.appContainer}>
+        <NavigationContainer ref={navigationRef}>
+          <View style={styles.navigatorWrapper}>
+            <Stack.Navigator
+              initialRouteName={initialRoute}
+              screenOptions={{animation: 'none'}}>
+              <Stack.Screen
+                name="Welcome"
+                component={WelcomeScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Login"
+                component={LoginScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerBackVisible: true,
+                  headerTintColor: '#fff',
+                }}
+              />
+              <Stack.Screen
+                name="Register"
+                component={RegisterScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                }}
+              />
+              <Stack.Screen
+                name="Home"
+                component={HomeScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Allowance"
+                component={AllowanceScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+            </Stack.Navigator>
+          </View>
+        </NavigationContainer>
+
+        {/* Bottom nav as part of the layout */}
+        {isLoggedIn &&
+          !['Welcome', 'Login', 'Register'].includes(currentScreen) && (
+            <BottomNavigation navigationRef={navigationRef} />
+          )}
+      </View>
     </>
   );
 }
@@ -153,6 +182,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  appContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  navigatorWrapper: {
+    flex: 1,
   },
 });
 
