@@ -15,8 +15,10 @@ import {
 import WelcomeScreen from './src/screens/Welcome';
 import LoginScreen from './src/screens/Login';
 import RegisterScreen from './src/screens/Register';
-import HomeScreen from './src/screens/Home';
+import MainScreen from './src/screens/Main';
 import * as authStorage from './src/utils/authStorage';
+
+import AllowanceScreen from './src/screens/Allowance';
 
 const Stack = createNativeStackNavigator();
 
@@ -40,7 +42,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const checkLoginStatus = async () => {
       const token = await authStorage.getToken();
-      setInitialRoute(token ? 'Home' : 'Welcome');
+      setInitialRoute(token ? 'Main' : 'Welcome');
     };
     checkLoginStatus();
   }, []);
@@ -49,7 +51,7 @@ function App(): React.JSX.Element {
     const onBackPress = (): boolean => {
       const currentRoute = navigationRef.getCurrentRoute()?.name;
 
-      if (currentRoute === 'Home') {
+      if (currentRoute === 'Main') {
         BackHandler.exitApp();
         return true;
       }
@@ -119,14 +121,24 @@ function App(): React.JSX.Element {
             }}
           />
           <Stack.Screen
-            name="Home"
-            component={HomeScreen}
+            name="Main"
+            component={MainScreen}
             options={{
               headerTitle: HeaderLogo,
               headerStyle: {backgroundColor: '#1E2A38'},
               headerTitleAlign: 'left',
               headerTintColor: '#fff',
               headerBackVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="Allowance"
+            component={AllowanceScreen}
+            options={{
+              headerTitle: HeaderLogo,
+              headerStyle: {backgroundColor: '#1E2A38'},
+              headerTitleAlign: 'left',
+              headerTintColor: '#fff',
             }}
           />
         </Stack.Navigator>
