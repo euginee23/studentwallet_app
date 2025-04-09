@@ -5,6 +5,7 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -199,7 +200,9 @@ app.post('/api/check-user', async (req, res) => {
     console.error('Check user error:', error);
     res.status(500).json({error: 'Server error checking user.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -253,6 +256,66 @@ app.post('/api/verify', async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+});
+
+// LOGIN
+app.post('/api/login', async (req, res) => {
+  const {username, password} = req.body;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [users] = await connection.query(
+      'SELECT * FROM users WHERE username = ?',
+      [username],
+    );
+
+    if (users.length === 0) {
+      return res.status(400).json({error: 'Invalid username or password.'});
+    }
+
+    const user = users[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({error: 'Invalid username or password.'});
+    }
+
+    if (!user.is_verified) {
+      return res.status(403).json({error: 'Account is not verified.'});
+    }
+
+    const token = jwt.sign(
+      {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        contact_number: user.contact_number,
+        first_name: user.first_name,
+        last_name: user.last_name,
+      },
+      process.env.JWT_SECRET,
+      {expiresIn: '7d'},
+    );
+
+    res.json({
+      token,
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        user_type: user.user_type,
+      },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({error: 'Login failed.'});
+  } finally {
+    if (connection) {connection.release();}
   }
 });
 

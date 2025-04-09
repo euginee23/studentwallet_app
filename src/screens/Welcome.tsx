@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: 'transparent',
-    borderColor: '#4CAF50',
+    borderColor: '#2CD3B2',
     borderWidth: 2,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   loginText: {
-    color: '#4CAF50',
+    color: 'white',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 1,

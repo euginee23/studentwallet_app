@@ -12,6 +12,7 @@ import {
 import Config from 'react-native-config';
 import VerificationCodeModal from '../modals/VerificationCodeModal';
 import ExistingUserModal from '../modals/ExistingUserModal';
+import {Image} from 'react-native';
 
 export default function RegisterScreen({navigation}: any) {
   const [firstName, setFirstName] = useState('');
@@ -62,7 +63,9 @@ export default function RegisterScreen({navigation}: any) {
   };
 
   const handleRegister = async () => {
-    if (!validate()) {return;}
+    if (!validate()) {
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -149,17 +152,25 @@ export default function RegisterScreen({navigation}: any) {
       />
       {errors.lastName && <Text style={styles.error}>{errors.lastName}</Text>}
 
-      <TextInput
-        placeholder="Email"
-        style={styles.input}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
+      <View style={styles.emailRow}>
+        <TouchableOpacity style={styles.gmailPicker}>
+          <Image
+            source={require('../../assets/google_logo.png')} // Adjust path if needed
+            style={styles.gmailImage}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+        <TextInput
+          placeholder="Email"
+          style={styles.emailInput}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+      </View>
       {errors.email && <Text style={styles.error}>{errors.email}</Text>}
 
-      {/* Contact Number with +63 */}
       <View style={styles.phoneRow}>
         <View style={styles.prefixContainer}>
           <Text style={styles.prefixText}>+63</Text>
@@ -326,7 +337,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
   },
   prefixText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#333',
   },
   phoneInput: {
@@ -364,5 +375,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 6,
     marginLeft: 4,
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  gmailPicker: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  emailInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderColor: '#ccc',
+  },
+  gmailImage: {
+    width: 25,
+    height: 20,
   },
 });
