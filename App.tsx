@@ -29,6 +29,8 @@ import HeaderProfileButton from './src/components/HeaderProfile';
 import HeaderNotificationsButton from './src/components/HeaderNotificationsButton';
 import {getUser, getToken} from './src/utils/authStorage';
 
+import { configurePushNotifications } from './src/config/PushNotificationService';
+
 const Stack = createNativeStackNavigator();
 
 function HeaderLogo() {
@@ -49,6 +51,10 @@ function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('');
   const navigationRef = useNavigationContainerRef();
+
+  useEffect(() => {
+    configurePushNotifications();
+  }, []);
 
   useEffect(() => {
     const checkLoginStatus = async () => {

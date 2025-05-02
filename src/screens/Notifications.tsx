@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
 import { notifications as notificationsData } from '../data/notificationsData';
+import { sendLocalNotification } from '../config/PushNotificationService';
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState(notificationsData);
@@ -20,19 +28,25 @@ export default function NotificationsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-
-    // Fetch new fresh copy from notificationsData.ts
     setTimeout(() => {
-      setNotifications([...notificationsData]); // << fetch fresh copy
+      setNotifications([...notificationsData]);
       setRefreshing(false);
-    }, 500); // you can remove timeout later if you fetch from API
+    }, 500);
+  };
+
+  const handleTestNotification = () => {
+    sendLocalNotification('Test Notification', 'This is a local test alert.');
   };
 
   return (
     <ScrollView
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4CAF50']} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#4CAF50']}
+        />
       }
     >
       <View style={styles.headerRow}>
@@ -41,6 +55,11 @@ export default function NotificationsScreen() {
           <Text style={styles.markAllText}>Mark All as Read</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 🔔 Test Notification Button */}
+      <TouchableOpacity style={styles.testButton} onPress={handleTestNotification}>
+        <Text style={styles.testButtonText}>Send Test Notification</Text>
+      </TouchableOpacity>
 
       {notifications.map((notif) => (
         <View key={notif.id} style={styles.alertCard}>
@@ -83,6 +102,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  testButton: {
+    backgroundColor: '#E0F2F1',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  testButtonText: {
+    color: '#00796B',
+    fontWeight: '600',
+    fontSize: 14,
   },
   alertCard: {
     backgroundColor: '#fff',
