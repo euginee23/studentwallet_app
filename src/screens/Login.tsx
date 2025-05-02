@@ -44,7 +44,7 @@ export default function LoginScreen({navigation}: any) {
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
       Alert.alert('Success', 'Login successful!');
-      navigation.replace('Home');
+      navigation.replace('Dashboard');
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert('Error', 'An error occurred. Please try again.');

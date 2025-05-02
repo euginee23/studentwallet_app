@@ -1,21 +1,21 @@
 import React from 'react';
-import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {NavigationContainerRefWithCurrent} from '@react-navigation/native';
+import { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 
 const tabs = [
-  {label: 'Home', icon: 'home-outline'},
-  {label: 'Allowance', icon: 'wallet-outline'},
-  {label: 'Analytics', icon: 'stats-chart-outline'},
-  {label: 'History', icon: 'time-outline'},
-  {label: 'Profile', icon: 'person-outline'},
+  { label: 'Dashboard', icon: 'home-outline' },
+  { label: 'Allowance', icon: 'wallet-outline' },
+  { label: 'Expenses', icon: 'list-outline' },
+  { label: 'Set Goals', icon: 'flag-outline' },
+  { label: 'Reports', icon: 'document-text-outline' },
 ];
 
 interface Props {
   navigationRef: NavigationContainerRefWithCurrent<any>;
 }
 
-export default function BottomNavigation({navigationRef}: Props) {
+export default function BottomNavigation({ navigationRef }: Props) {
   const activeTab = navigationRef.current?.getCurrentRoute()?.name || '';
 
   const goTo = (screen: string) => {
@@ -32,12 +32,13 @@ export default function BottomNavigation({navigationRef}: Props) {
           <TouchableOpacity
             key={index}
             style={styles.navItem}
-            onPress={() => goTo(item.label)}>
+            onPress={() => goTo(item.label)}
+          >
             <Icon
               name={item.icon}
               size={22}
               color={isActive ? '#6C5CE7' : '#999'}
-              style={{marginBottom: 2}}
+              style={{ marginBottom: 2 }}
             />
             <Text style={[styles.navLabel, isActive && styles.activeLabel]}>
               {item.label}

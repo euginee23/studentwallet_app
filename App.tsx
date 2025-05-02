@@ -16,11 +16,17 @@ import {
 import WelcomeScreen from './src/screens/Welcome';
 import LoginScreen from './src/screens/Login';
 import RegisterScreen from './src/screens/Register';
-import HomeScreen from './src/screens/Home';
+import DashboardScreen from './src/screens/Dashboard';
 import AllowanceScreen from './src/screens/Allowance';
+import ExpensesScreen from './src/screens/Expenses';
+import ReportsScreen from './src/screens/Reports';
+import ProfileScreen from './src/screens/Profile';
+import NotificationsScreen from './src/screens/Notifications';
+import GoalSettingScreen from './src/screens/GoalSetting';
 
 import BottomNavigation from './src/components/BottomNavigation';
 import HeaderProfileButton from './src/components/HeaderProfile';
+import HeaderNotificationsButton from './src/components/HeaderNotificationsButton';
 import {getUser, getToken} from './src/utils/authStorage';
 
 const Stack = createNativeStackNavigator();
@@ -49,7 +55,7 @@ function App(): React.JSX.Element {
       const token = await getToken();
       const user = await getUser();
       setIsLoggedIn(!!token && !!user);
-      setInitialRoute(token ? 'Home' : 'Welcome');
+      setInitialRoute(token ? 'Dashboard' : 'Welcome');
     };
     checkLoginStatus();
   }, []);
@@ -72,7 +78,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const onBackPress = (): boolean => {
       const currentRoute = navigationRef.getCurrentRoute()?.name;
-      if (currentRoute === 'Home') {
+      if (currentRoute === 'Dashboard') {
         BackHandler.exitApp();
         return true;
       }
@@ -116,9 +122,13 @@ function App(): React.JSX.Element {
                 headerRight: () =>
                   isLoggedIn &&
                   !['Welcome', 'Login', 'Register'].includes(route.name) ? (
-                    <HeaderProfileButton />
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                      <HeaderNotificationsButton />
+                      <HeaderProfileButton />
+                    </View>
                   ) : null,
               })}>
+              {/* Public Screens */}
               <Stack.Screen
                 name="Welcome"
                 component={WelcomeScreen}
@@ -150,13 +160,13 @@ function App(): React.JSX.Element {
                   headerTintColor: '#fff',
                 }}
               />
+
+              {/* Main App Screens */}
               <Stack.Screen
-                name="Home"
-                component={HomeScreen}
+                name="Dashboard"
+                component={DashboardScreen}
                 options={{
                   headerTitle: HeaderLogo,
-                  headerRight: () =>
-                    isLoggedIn ? <HeaderProfileButton /> : null,
                   headerStyle: {backgroundColor: '#1E2A38'},
                   headerTitleAlign: 'left',
                   headerTintColor: '#fff',
@@ -174,11 +184,66 @@ function App(): React.JSX.Element {
                   headerBackVisible: false,
                 }}
               />
+              <Stack.Screen
+                name="Expenses"
+                component={ExpensesScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Set Goals"
+                component={GoalSettingScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Reports"
+                component={ReportsScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Profile"
+                component={ProfileScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: false,
+                }}
+              />
+              <Stack.Screen
+                name="Notifications"
+                component={NotificationsScreen}
+                options={{
+                  headerTitle: HeaderLogo,
+                  headerStyle: {backgroundColor: '#1E2A38'},
+                  headerTitleAlign: 'left',
+                  headerTintColor: '#fff',
+                  headerBackVisible: true,
+                }}
+              />
             </Stack.Navigator>
           </View>
         </NavigationContainer>
 
-        {/* Bottom nav as part of the layout */}
+        {/* Bottom nav visible except for auth screens */}
         {isLoggedIn &&
           !['Welcome', 'Login', 'Register'].includes(currentScreen) && (
             <BottomNavigation navigationRef={navigationRef} />
