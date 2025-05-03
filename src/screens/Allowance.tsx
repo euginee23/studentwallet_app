@@ -95,6 +95,10 @@ export default function AllowanceScreen() {
           setLimit(0);
           setStartDate('');
           setEndDate('');
+          setActiveAllowanceId(null);
+          setTransactions([]);
+          setViewingHistory(false);
+          setActiveTab('balance');
         }
       }
     } catch (err) {
@@ -107,6 +111,7 @@ export default function AllowanceScreen() {
   const fetchBalanceHistory = useCallback(async () => {
     try {
       if (!activeAllowanceId) {
+        setTransactions([]);
         return;
       }
 
@@ -121,9 +126,11 @@ export default function AllowanceScreen() {
         setTransactions(grouped);
       } else {
         console.error('Error fetching balance history:', data.error);
+        setTransactions([]);
       }
     } catch (err) {
       console.error('Balance history fetch error:', err);
+      setTransactions([]);
     }
   }, [activeAllowanceId]);
 
@@ -185,17 +192,22 @@ export default function AllowanceScreen() {
         `${Config.API_BASE_URL}/api/allowances-history/${user.user_id}`,
       );
       const data = await response.json();
+
       if (response.ok) {
-        // filter out the active one if needed (optional, if backend already returns all)
-        const history = data.history.filter(
-          (item: any) => item.allowance_id !== activeAllowanceId,
-        );
+        const today = new Date().toISOString().split('T')[0];
+
+        const history = data.history.filter((item: any) => {
+          const start = item.start_date;
+          const end = item.end_date;
+          return !(today >= start && today <= end);
+        });
+
         setAllowanceHistory(history);
       }
     } catch (err) {
       console.error('Fetch allowance history error:', err);
     }
-  }, [activeAllowanceId]);
+  }, []);
 
   useEffect(() => {
     if (!modalVisible && !viewingHistory) {
@@ -269,10 +281,11 @@ export default function AllowanceScreen() {
   };
 
   const handleCloseHistoryView = async () => {
+    setActiveAllowanceId(null);
     setViewingHistory(false);
+    setTransactions([]);
     setLoading(true);
     await fetchAllowance();
-    await fetchBalanceHistory();
     await fetchAllowanceHistory();
     setLoading(false);
   };

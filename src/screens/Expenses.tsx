@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,13 @@ type BalanceHistoryEntry = {
 
 export default function ExpensesScreen() {
   const [expenses, setExpenses] = useState<
-    {description: string; amount: number; category: string; date: string}[]
+    {
+      description: string;
+      amount: number;
+      category: string;
+      date: string;
+      time: string;
+    }[]
   >([]);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -37,11 +43,13 @@ export default function ExpensesScreen() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     try {
       const user = await getUser();
+      if (!activeAllowanceId) return;
+
       const res = await fetch(
-        `${Config.API_BASE_URL}/api/balance-history/${user.user_id}`,
+        `${Config.API_BASE_URL}/api/balance-history/${user.user_id}?allowance_id=${activeAllowanceId}`,
       );
       const data = await res.json();
 
@@ -49,19 +57,22 @@ export default function ExpensesScreen() {
         const filtered = (data.history as BalanceHistoryEntry[])
           .filter(entry => entry.balance_type === 'Expense')
           .map(entry => {
-            const date = new Date(entry.created_at).toLocaleDateString(
-              'en-US',
-              {
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric',
-              },
-            );
+            const dateObj = new Date(entry.created_at);
+            const date = dateObj.toLocaleDateString('en-US', {
+              month: 'short',
+              day: '2-digit',
+              year: 'numeric',
+            });
+            const time = dateObj.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
             return {
               description: entry.description,
               amount: Number(entry.amount),
               category: entry.category || 'Others',
               date,
+              time,
             };
           });
 
@@ -72,7 +83,7 @@ export default function ExpensesScreen() {
     } catch (err) {
       console.error('Fetch expenses error:', err);
     }
-  };
+  }, [activeAllowanceId]);
 
   const fetchAllowance = async () => {
     try {
@@ -117,7 +128,7 @@ export default function ExpensesScreen() {
       await fetchExpenses();
     };
     runFetch();
-  }, []);
+  }, [fetchExpenses]);
 
   return (
     <View style={styles.container}>
@@ -143,11 +154,19 @@ export default function ExpensesScreen() {
 
       <TouchableOpacity
         activeOpacity={0.8}
-        style={styles.addButton}
+        disabled={!activeAllowanceId}
+        style={[styles.addButton, !activeAllowanceId && {opacity: 0.5}]}
         onPress={() => setModalVisible(true)}>
         <Icon name="add-circle-outline" size={22} color="#4CAF50" />
         <Text style={styles.addButtonText}>Add New Expense</Text>
       </TouchableOpacity>
+
+      {!activeAllowanceId && (
+        <Text style={styles.noAllowanceText}>
+          To add expenses, please go to the Allowance tab and set your
+          allowance.
+        </Text>
+      )}
 
       <ScrollView contentContainerStyle={styles.expenseList}>
         {expenses.map((item, index) => (
@@ -155,10 +174,10 @@ export default function ExpensesScreen() {
             <View style={{flex: 1}}>
               <View style={styles.expenseRow}>
                 <Text style={styles.expenseDateCategory}>
-                  {item.date} • {item.category}
+                  {item.date}, {item.time} • {item.category}
                 </Text>
                 <Text style={styles.expenseAmount}>
-                  -₱
+                  - ₱
                   {item.amount.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}
@@ -277,5 +296,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#1E2A38',
+  },
+  noAllowanceText: {
+    textAlign: 'center',
+    color: '#E53935',
+    fontSize: 13,
+    marginBottom: 12,
+    fontWeight: '500',
   },
 });

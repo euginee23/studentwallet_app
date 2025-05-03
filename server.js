@@ -369,7 +369,6 @@ app.get('/api/allowances-history/:userId', async (req, res) => {
   try {
     connection = await db.promise().getConnection();
 
-    // Fetch all allowances (active and past)
     const [allowances] = await connection.query(
       `SELECT * FROM allowances 
        WHERE user_id = ? 
@@ -377,12 +376,10 @@ app.get('/api/allowances-history/:userId', async (req, res) => {
       [userId],
     );
 
-    // If no allowances, return empty array
     if (allowances.length === 0) {
       return res.json({history: []});
     }
 
-    // Fetch all related balance history in a single query
     const allowanceIds = allowances.map(a => a.allowance_id);
     const [balanceHistory] = await connection.query(
       `SELECT * FROM balance_history 
@@ -391,7 +388,6 @@ app.get('/api/allowances-history/:userId', async (req, res) => {
       [userId, allowanceIds],
     );
 
-    // Group balance history under its allowance
     const grouped = allowances.map(allowance => {
       const transactions = balanceHistory.filter(
         entry => entry.allowance_id === allowance.allowance_id,
