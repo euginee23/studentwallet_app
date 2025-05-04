@@ -743,7 +743,9 @@ app.put('/api/goals/:goalId/add', async (req, res) => {
       .status(500)
       .json({error: 'Failed to update goal and log balance history.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -886,7 +888,9 @@ app.get('/api/goal-history/:goalId', async (req, res) => {
     console.error('Goal history fetch failed:', err);
     res.status(500).json({error: 'Server error fetching goal history.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -917,6 +921,89 @@ app.delete('/api/goals/:goalId', async (req, res) => {
   } catch (err) {
     console.error('Delete goal error:', err);
     res.status(500).json({error: 'Failed to delete goal.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// REPORTS DATA (WEEKLY/MONTHLY SUMMARY)
+app.get('/api/summary-report/:userId', async (req, res) => {
+  const {userId} = req.params;
+  const {range, month, week} = req.query;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  let startDate, endDate;
+
+  const monthIndex = month
+    ? new Date(`${month} 1, ${year}`).getMonth()
+    : now.getMonth();
+
+  if (range === 'monthly') {
+    startDate = new Date(year, monthIndex, 1);
+    endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+  } else if (range === 'weekly' && week) {
+    const weekNumber = parseInt(week.split(' ')[1]);
+
+    if (isNaN(weekNumber) || week.toLowerCase() === 'all weeks') {
+      startDate = new Date(year, monthIndex, 1);
+      endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+    } else {
+      const daysOffset = (weekNumber - 1) * 7;
+      startDate = new Date(year, monthIndex, 1 + daysOffset);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59);
+    }
+  } else {
+    startDate = new Date();
+    startDate.setDate(now.getDate() - 7);
+    endDate = now;
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [rows] = await connection.query(
+      `SELECT balance_type, SUM(amount) as total
+       FROM balance_history
+       WHERE user_id = ? AND created_at BETWEEN ? AND ?
+       GROUP BY balance_type`,
+      [userId, startDate, endDate],
+    );
+
+    let income = 0,
+      expenses = 0,
+      savings = 0;
+
+    rows.forEach(row => {
+      switch (row.balance_type) {
+        case 'Income':
+          income = Number(row.total);
+          break;
+        case 'Expense':
+          expenses = Number(row.total);
+          break;
+        case 'Allowance Savings':
+        case 'Allocation Savings':
+          savings += Number(row.total);
+          break;
+      }
+    });
+
+    res.json({
+      income,
+      expenses,
+      savings,
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
+    });
+  } catch (err) {
+    console.error('Summary report error:', err);
+    res.status(500).json({error: 'Failed to generate summary report.'});
   } finally {
     if (connection) {connection.release();}
   }

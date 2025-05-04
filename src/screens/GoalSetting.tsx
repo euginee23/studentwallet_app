@@ -206,7 +206,9 @@ export default function GoalSettingScreen() {
           style: 'destructive',
           onPress: async () => {
             const user = await getUser();
-            if (!user?.user_id) {return;}
+            if (!user?.user_id) {
+              return;
+            }
 
             setDeletingGoalId(goalId);
 
@@ -394,51 +396,53 @@ export default function GoalSettingScreen() {
           </Text>
         ) : (
           goals.map(goal => (
-            <View
+            <TouchableOpacity
               key={goal.id}
+              activeOpacity={0.85}
               style={[
                 styles.goalCard,
                 activeTransferSource && {
                   borderWidth: 1,
                   borderColor: '#4CAF50',
                 },
-              ]}>
+              ]}
+              onPress={() => handleGoalSelect(goal.id)}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalTitle}>{goal.title}</Text>
-                <View style={styles.goalAmountRow}>
-                  <Text style={styles.goalAmount}>
-                    ₱{goal.currentAmount.toLocaleString()} / ₱
-                    {goal.targetAmount.toLocaleString()}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.deleteIcon}
-                    onPress={() => handleDeleteGoal(goal.id)}>
-                    {deletingGoalId === goal.id ? (
-                      <ActivityIndicator size="small" color="#D32F2F" />
-                    ) : (
-                      <Icon name="trash-outline" size={16} color="#D32F2F" />
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={styles.deleteIcon}
+                  onPress={e => {
+                    e.stopPropagation(); // prevent triggering parent onPress
+                    handleDeleteGoal(goal.id);
+                  }}>
+                  {deletingGoalId === goal.id ? (
+                    <ActivityIndicator size="small" color="#D32F2F" />
+                  ) : (
+                    <Icon name="trash-outline" size={16} color="#D32F2F" />
+                  )}
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                onPress={() => handleGoalSelect(goal.id)}
-                activeOpacity={0.7}>
-                <View style={styles.progressBarBackground}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      {
-                        width: `${
-                          (goal.currentAmount / goal.targetAmount) * 100
-                        }%`,
-                      },
-                    ]}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.goalAmountRow}>
+                <Text style={styles.goalAmount}>
+                  ₱{goal.currentAmount.toLocaleString()} / ₱
+                  {goal.targetAmount.toLocaleString()}
+                </Text>
+              </View>
+
+              <View style={styles.progressBarBackground}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width: `${
+                        (goal.currentAmount / goal.targetAmount) * 100
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -654,6 +658,7 @@ const styles = StyleSheet.create({
     color: '#1E2A38',
   },
   goalAmount: {
+    marginBottom: 5,
     fontSize: 12,
     color: '#666',
   },
