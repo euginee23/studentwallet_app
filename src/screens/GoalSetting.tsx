@@ -206,7 +206,7 @@ export default function GoalSettingScreen() {
           style: 'destructive',
           onPress: async () => {
             const user = await getUser();
-            if (!user?.user_id) return;
+            if (!user?.user_id) {return;}
 
             setDeletingGoalId(goalId);
 

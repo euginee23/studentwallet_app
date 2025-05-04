@@ -743,7 +743,7 @@ app.put('/api/goals/:goalId/add', async (req, res) => {
       .status(500)
       .json({error: 'Failed to update goal and log balance history.'});
   } finally {
-    if (connection) connection.release();
+    if (connection) {connection.release();}
   }
 });
 
@@ -886,7 +886,7 @@ app.get('/api/goal-history/:goalId', async (req, res) => {
     console.error('Goal history fetch failed:', err);
     res.status(500).json({error: 'Server error fetching goal history.'});
   } finally {
-    if (connection) connection.release();
+    if (connection) {connection.release();}
   }
 });
 
@@ -918,7 +918,7 @@ app.delete('/api/goals/:goalId', async (req, res) => {
     console.error('Delete goal error:', err);
     res.status(500).json({error: 'Failed to delete goal.'});
   } finally {
-    if (connection) connection.release();
+    if (connection) {connection.release();}
   }
 });
 
