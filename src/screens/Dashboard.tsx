@@ -9,6 +9,7 @@ import {
   Dimensions,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {PieChart} from 'react-native-chart-kit';
@@ -24,6 +25,8 @@ export default function DashboardScreen() {
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [totalSavings, setTotalSavings] = useState(0);
   const [remainingBalance, setRemainingBalance] = useState(0);
+
+  const [loading, setLoading] = useState(true);
 
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
   const [allowanceHistory, setAllowanceHistory] = useState<
@@ -179,15 +182,29 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const runFetches = async () => {
-      await fetchSummary();
-      await fetchAllowanceHistory();
-      await fetchExpensesHistory();
-      await fetchSavingsHistory();
-      await fetchSpendingBreakdown();
+      try {
+        setLoading(true);
+        await fetchSummary();
+        await fetchAllowanceHistory();
+        await fetchExpensesHistory();
+        await fetchSavingsHistory();
+        await fetchSpendingBreakdown();
+      } finally {
+        setLoading(false);
+      }
     };
 
     runFetches();
   }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -451,5 +468,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#333',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F7F9FB',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#1E2A38',
+    fontWeight: '500',
   },
 });
