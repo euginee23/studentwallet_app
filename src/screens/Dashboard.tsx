@@ -13,6 +13,9 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import {PieChart} from 'react-native-chart-kit';
 import AllowanceHistoryModal from '../modals/AllowanceHistoryModal';
+import RemainingBalanceModal from '../modals/RemainingBalanceModal';
+import TotalExpensesModal from '../modals/TotalExpensesModal';
+import TotalSavingsModal from '../modals/TotalSavingsModal';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -32,15 +35,40 @@ export default function DashboardScreen() {
     }[]
   >([]);
 
-  const expenseData = [
-    {name: 'Food', amount: 800, color: '#FF6384', icon: ''},
-    {name: 'Transportation', amount: 400, color: '#36A2EB', icon: ''},
-    {name: 'Education', amount: 600, color: '#FFCE56', icon: ''},
-    {name: 'Entertainment', amount: 300, color: '#4BC0C0', icon: ''},
-    {name: 'Others', amount: 400, color: '#9966FF', icon: ''},
-  ];
+  const [balanceHistoryModalVisible, setBalanceHistoryModalVisible] =
+    useState(false);
+  const [balanceHistory, setBalanceHistory] = useState<
+    {
+      balance_type: 'Expense' | 'Savings';
+      description: string;
+      amount: number;
+      created_at: string;
+    }[]
+  >([]);
 
-  const pieChartData = expenseData.map(item => ({
+  const [expensesModalVisible, setExpensesModalVisible] = useState(false);
+  const [expensesHistory, setExpensesHistory] = useState<
+    {
+      description: string;
+      amount: number;
+      created_at: string;
+    }[]
+  >([]);
+
+  const [savingsModalVisible, setSavingsModalVisible] = useState(false);
+  const [savingsHistory, setSavingsHistory] = useState<
+    {
+      description: string;
+      amount: number;
+      created_at: string;
+    }[]
+  >([]);
+
+  const [spendingBreakdown, setSpendingBreakdown] = useState<
+    {name: string; amount: number; color: string}[]
+  >([]);
+
+  const pieChartData = spendingBreakdown.map(item => ({
     name: item.name,
     population: item.amount,
     color: item.color,
@@ -83,10 +111,79 @@ export default function DashboardScreen() {
     }
   };
 
+  const fetchBalanceHistory = async () => {
+    try {
+      const user = await getUser();
+      const res = await axios.get(
+        `${Config.API_BASE_URL}/api/expense-savings-history/${user.user_id}`,
+      );
+      setBalanceHistory(res.data);
+    } catch (err) {
+      console.error('Failed to fetch balance history:', err);
+    }
+  };
+
+  const fetchExpensesHistory = async () => {
+    try {
+      const user = await getUser();
+      const res = await axios.get(
+        `${Config.API_BASE_URL}/api/expenses-history/${user.user_id}`,
+      );
+      setExpensesHistory(res.data);
+    } catch (err) {
+      console.error('Failed to fetch expenses history:', err);
+    }
+  };
+
+  const fetchSavingsHistory = async () => {
+    try {
+      const user = await getUser();
+      const res = await axios.get(
+        `${Config.API_BASE_URL}/api/savings-history/${user.user_id}`,
+      );
+      setSavingsHistory(res.data);
+    } catch (err) {
+      console.error('Failed to fetch savings history:', err);
+    }
+  };
+
+  const fetchSpendingBreakdown = async () => {
+    try {
+      const user = await getUser();
+      const res = await axios.get(
+        `${Config.API_BASE_URL}/api/spending-breakdown/${user.user_id}`,
+      );
+
+      const colorPalette = [
+        '#FF6384',
+        '#36A2EB',
+        '#FFCE56',
+        '#4BC0C0',
+        '#9966FF',
+        '#F97316',
+        '#10B981',
+        '#8B5CF6',
+      ];
+
+      const data = res.data.map((item: any, index: number) => ({
+        name: item.name,
+        amount: item.amount,
+        color: colorPalette[index % colorPalette.length],
+      }));
+
+      setSpendingBreakdown(data);
+    } catch (err) {
+      console.error('Failed to fetch spending breakdown:', err);
+    }
+  };
+
   useEffect(() => {
     const runFetches = async () => {
       await fetchSummary();
       await fetchAllowanceHistory();
+      await fetchExpensesHistory();
+      await fetchSavingsHistory();
+      await fetchSpendingBreakdown();
     };
 
     runFetches();
@@ -96,7 +193,6 @@ export default function DashboardScreen() {
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.wrapper}>
         <View style={styles.container}>
-          {/* Total Allowance Card */}
           <View style={styles.balanceCard}>
             <TouchableOpacity
               style={styles.balanceTap}
@@ -117,9 +213,13 @@ export default function DashboardScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Fund Summary */}
             <View style={styles.fundBreakdown}>
-              <TouchableOpacity style={styles.fundBoxFull}>
+              <TouchableOpacity
+                style={styles.fundBoxFull}
+                onPress={() => {
+                  fetchBalanceHistory();
+                  setBalanceHistoryModalVisible(true);
+                }}>
                 <View style={styles.rowWithArrow}>
                   <Text style={styles.fundTitle}>Total Remaining Balance</Text>
                   <Icon
@@ -134,7 +234,12 @@ export default function DashboardScreen() {
               </TouchableOpacity>
 
               <View style={styles.fundBoxRow}>
-                <TouchableOpacity style={styles.fundBoxHalf}>
+                <TouchableOpacity
+                  style={styles.fundBoxHalf}
+                  onPress={() => {
+                    fetchExpensesHistory();
+                    setExpensesModalVisible(true);
+                  }}>
                   <View style={styles.rowWithArrow}>
                     <Text style={styles.fundTitle}>Total Expenses</Text>
                     <Icon
@@ -148,7 +253,12 @@ export default function DashboardScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.fundBoxHalf}>
+                <TouchableOpacity
+                  style={styles.fundBoxHalf}
+                  onPress={() => {
+                    fetchSavingsHistory();
+                    setSavingsModalVisible(true);
+                  }}>
                   <View style={styles.rowWithArrow}>
                     <Text style={styles.fundTitle}>Total Savings</Text>
                     <Icon
@@ -165,7 +275,6 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {/* Pie Chart */}
           <View style={styles.chartCard}>
             <Text style={styles.sectionTitle}>Spending Breakdown</Text>
             <PieChart
@@ -183,18 +292,17 @@ export default function DashboardScreen() {
             />
           </View>
 
-          {/* Expense Categories */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Expense Categories</Text>
-            {expenseData.map((item, index) => (
+            {spendingBreakdown.map((item, index) => (
               <View key={index} style={styles.expenseRow}>
                 <View
                   style={[styles.colorDot, {backgroundColor: item.color}]}
                 />
-                <Text style={styles.expenseLabel}>
-                  {item.icon} {item.name}
+                <Text style={styles.expenseLabel}>{item.name}</Text>
+                <Text style={styles.expenseAmount}>
+                  ₱{item.amount.toFixed(2)}
                 </Text>
-                <Text style={styles.expenseAmount}>₱{item.amount}</Text>
               </View>
             ))}
           </View>
@@ -205,6 +313,24 @@ export default function DashboardScreen() {
         visible={historyModalVisible}
         onClose={() => setHistoryModalVisible(false)}
         history={allowanceHistory}
+      />
+
+      <RemainingBalanceModal
+        visible={balanceHistoryModalVisible}
+        onClose={() => setBalanceHistoryModalVisible(false)}
+        history={balanceHistory}
+      />
+
+      <TotalExpensesModal
+        visible={expensesModalVisible}
+        onClose={() => setExpensesModalVisible(false)}
+        history={expensesHistory}
+      />
+
+      <TotalSavingsModal
+        visible={savingsModalVisible}
+        onClose={() => setSavingsModalVisible(false)}
+        history={savingsHistory}
       />
     </ScrollView>
   );

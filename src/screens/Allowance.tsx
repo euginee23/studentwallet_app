@@ -375,7 +375,11 @@ export default function AllowanceScreen() {
           <View style={[styles.amountBox, {backgroundColor: '#FFF3E0'}]}>
             <Text style={styles.label}>Limit Left</Text>
             <Text style={[styles.amount, {color: '#FB8C00'}]}>
-              ₱{Math.max(limit - totalExpenses, 0).toLocaleString()}
+              ₱
+              {Math.max(
+                limit - totalExpenses - allowanceSavings,
+                0,
+              ).toLocaleString()}
             </Text>
           </View>
 

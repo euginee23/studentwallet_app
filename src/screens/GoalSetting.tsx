@@ -522,6 +522,7 @@ export default function GoalSettingScreen() {
 
           if (activeTransferSource === 'balance') {
             selectedAllowance!.balance -= amount;
+            selectedAllowance!.remainingLimit -= amount;
           } else {
             selectedAllowance!.allocation -= amount;
           }

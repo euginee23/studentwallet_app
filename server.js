@@ -808,6 +808,11 @@ app.get('/api/allowances-summary/:userId', async (req, res) => {
         0,
       );
 
+      const remainingLimit = Math.max(
+        allowance.spending_limit - totalExpenses - allowanceSavings,
+        0,
+      );
+
       const isActive =
         today >= new Date(allowance.start_date) &&
         today <= new Date(allowance.end_date);
@@ -827,7 +832,7 @@ app.get('/api/allowances-summary/:userId', async (req, res) => {
         spending_limit: allowance.spending_limit,
         overspending,
         remainingBalance: Math.max(remainingBalance, 0),
-        remainingLimit: Math.max(allowance.spending_limit - totalExpenses, 0),
+        remainingLimit,
         remainingAllocation,
       };
     });
@@ -1101,6 +1106,129 @@ app.get('/api/allowance-income-history/:userId', async (req, res) => {
   } catch (error) {
     console.error('Fetch allowance income history error:', error);
     res.status(500).json({error: 'Failed to fetch allowance income history.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH EXPENSE & SAVINGS HISTORY FOR DASHBOARD MODAL
+app.get('/api/expense-savings-history/:userId', async (req, res) => {
+  const {userId} = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [rows] = await connection.query(
+      `SELECT bh.amount, bh.created_at, bh.balance_type, bh.description
+       FROM balance_history bh
+       WHERE bh.user_id = ?
+         AND (bh.balance_type = 'Expense' OR bh.balance_type = 'Allocation Savings' OR bh.balance_type = 'Allowance Savings')
+       ORDER BY bh.created_at DESC`,
+      [userId],
+    );
+
+    const history = rows.map(row => ({
+      amount: Number(row.amount),
+      balance_type: row.balance_type,
+      description: row.description,
+      created_at: row.created_at,
+    }));
+
+    res.json(history);
+  } catch (error) {
+    console.error('Fetch expense/savings history error:', error);
+    res.status(500).json({error: 'Failed to fetch expense/savings history.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH TOTAL EXPENSES DASHBOARD MODAL
+app.get('/api/expenses-history/:userId', async (req, res) => {
+  const {userId} = req.params;
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    const [rows] = await connection.query(
+      `SELECT amount, created_at, description
+       FROM balance_history
+       WHERE user_id = ? AND balance_type = 'Expense'
+       ORDER BY created_at DESC`,
+      [userId],
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Fetch expenses history error:', error);
+    res.status(500).json({error: 'Failed to fetch expenses history.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH TOTAL SAVINGS DASHBARD MODAL
+app.get('/api/savings-history/:userId', async (req, res) => {
+  const {userId} = req.params;
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    const [rows] = await connection.query(
+      `SELECT amount, created_at, description
+       FROM balance_history
+       WHERE user_id = ? AND (balance_type = 'Allowance Savings' OR balance_type = 'Allocation Savings')
+       ORDER BY created_at DESC`,
+      [userId],
+    );
+
+    const history = rows.map(row => ({
+      amount: Number(row.amount),
+      description: row.description,
+      created_at: row.created_at,
+    }));
+
+    res.json(history);
+  } catch (error) {
+    console.error('Fetch savings history error:', error);
+    res.status(500).json({error: 'Failed to fetch savings history.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH SPENDING BREAKDOWN DASHBOARD DATA - PIECHART
+app.get('/api/spending-breakdown/:userId', async (req, res) => {
+  const {userId} = req.params;
+  let connection;
+
+  try {
+    connection = await db.promise().getConnection();
+
+    const [rows] = await connection.query(
+      `SELECT category, SUM(amount) AS total
+       FROM balance_history
+       WHERE user_id = ? AND balance_type = 'Expense'
+       GROUP BY category
+       ORDER BY total DESC`,
+      [userId],
+    );
+
+    const data = rows.map(row => ({
+      name: row.category,
+      amount: Number(row.total),
+    }));
+
+    res.json(data);
+  } catch (error) {
+    console.error('Failed to fetch spending breakdown:', error);
+    res.status(500).json({error: 'Error fetching spending breakdown.'});
   } finally {
     if (connection) {
       connection.release();
