@@ -743,7 +743,7 @@ app.put('/api/goals/:goalId/add', async (req, res) => {
       .status(500)
       .json({error: 'Failed to update goal and log balance history.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) connection.release();
   }
 });
 
@@ -886,7 +886,7 @@ app.get('/api/goal-history/:goalId', async (req, res) => {
     console.error('Goal history fetch failed:', err);
     res.status(500).json({error: 'Server error fetching goal history.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) connection.release();
   }
 });
 
@@ -903,13 +903,11 @@ app.delete('/api/goals/:goalId', async (req, res) => {
   try {
     connection = await db.promise().getConnection();
 
-    // Delete related balance_history first
     await connection.query(
       'DELETE FROM balance_history WHERE user_id = ? AND goal_id = ?',
       [user_id, goalId],
     );
 
-    // Then delete the goal itself
     await connection.query(
       'DELETE FROM savings_goals WHERE goal_id = ? AND user_id = ?',
       [goalId, user_id],
@@ -920,7 +918,7 @@ app.delete('/api/goals/:goalId', async (req, res) => {
     console.error('Delete goal error:', err);
     res.status(500).json({error: 'Failed to delete goal.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) connection.release();
   }
 });
 
