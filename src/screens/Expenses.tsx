@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import Config from 'react-native-config';
 import {getUser} from '../utils/authStorage';
@@ -43,10 +44,54 @@ export default function ExpensesScreen() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  const [allowances, setAllowances] = useState<any[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+
+  const isSelectedActive = (() => {
+    const selected = allowances.find(a => a.id === activeAllowanceId);
+    if (!selected) {return false;}
+
+    const now = new Date();
+    const start = new Date(selected.startDate);
+    const end = new Date(selected.endDate);
+
+    return (
+      now >= new Date(start.setHours(0, 0, 0, 0)) &&
+      now <= new Date(end.setHours(23, 59, 59, 999))
+    );
+  })();
+
+  const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const hasExceededLimit = totalSpent > limit;
+
+  const selectAllowance = (item: any) => {
+    setAllowance(item.amount);
+    setLimit(item.limit);
+    setStartDate(
+      new Date(item.startDate).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    );
+    setEndDate(
+      new Date(item.endDate).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    );
+    setActiveAllowanceId(item.id);
+  };
+
   const fetchExpenses = useCallback(async () => {
     try {
       const user = await getUser();
-      if (!activeAllowanceId) return;
+      if (!activeAllowanceId) {
+        return;
+      }
 
       const res = await fetch(
         `${Config.API_BASE_URL}/api/balance-history/${user.user_id}?allowance_id=${activeAllowanceId}`,
@@ -85,57 +130,157 @@ export default function ExpensesScreen() {
     }
   }, [activeAllowanceId]);
 
-  const fetchAllowance = async () => {
+  const fetchAllowance = useCallback(async () => {
+    const user = await getUser();
+    if (!user?.user_id) {return;}
+
     try {
-      const user = await getUser();
       const res = await fetch(
-        `${Config.API_BASE_URL}/api/allowances/${user.user_id}`,
+        `${Config.API_BASE_URL}/api/allowances-summary/${user.user_id}`,
       );
       const data = await res.json();
 
-      if (
-        res.ok &&
-        Array.isArray(data.allowances) &&
-        data.allowances.length > 0
-      ) {
-        const active = data.allowances[0];
-        setAllowance(Number(active.amount));
-        setLimit(Number(active.spending_limit));
-        setStartDate(
-          new Date(active.start_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }),
-        );
-        setEndDate(
-          new Date(active.end_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }),
-        );
-        setActiveAllowanceId(active.allowance_id);
+      if (res.ok && Array.isArray(data.summaries)) {
+        const parsed = data.summaries.map((item: any) => {
+          const startLabel = item.start_date
+            ? new Date(item.start_date).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              })
+            : 'Invalid';
+          const endLabel = item.end_date
+            ? new Date(item.end_date).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              })
+            : 'Invalid';
+
+          return {
+            id: item.allowance_id,
+            label: `${
+              item.isActive ? 'Active' : 'Allowance'
+            } (${startLabel} - ${endLabel})`,
+            amount: Number(item.amount),
+            limit: Number(item.spending_limit),
+            startDate: item.start_date,
+            endDate: item.end_date,
+          };
+        });
+
+        setAllowances(parsed);
+        if (!activeAllowanceId && parsed.length > 0) {
+          selectAllowance(
+            parsed.find((a: any) => a.label.startsWith('Active')) || parsed[0],
+          );
+        }
       }
     } catch (err) {
-      console.error('Fetch allowance error:', err);
+      console.error('Failed to fetch allowances:', err);
     }
-  };
+  }, [activeAllowanceId]);
 
   useEffect(() => {
     const runFetch = async () => {
+      setLoading(true);
       await fetchAllowance();
-      await fetchExpenses();
+      setLoading(false);
     };
     runFetch();
-  }, [fetchExpenses]);
+  }, [fetchAllowance]);
+
+  useEffect(() => {
+    if (activeAllowanceId) {
+      fetchExpenses();
+    }
+  }, [activeAllowanceId, fetchExpenses]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={styles.loadingText}>Loading expenses...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.allowanceCard}>
-        <Text style={styles.allowanceHeader}>Active Allowance</Text>
+        <View style={{marginBottom: 14}}>
+          <TouchableOpacity
+            style={styles.dropdownToggle}
+            onPress={() => setDropdownOpen(!dropdownOpen)}>
+            <Text style={styles.dropdownSelectedText}>
+              {startDate && endDate
+                ? `${startDate} - ${endDate}`
+                : 'Select Allowance'}
+            </Text>
+            <Icon
+              name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color="#444"
+            />
+          </TouchableOpacity>
+
+          {dropdownOpen && (
+            <View style={styles.dropdownList}>
+              {allowances.map(item => {
+                const now = new Date();
+                const start = new Date(item.startDate);
+                const end = new Date(item.endDate);
+                const isActive =
+                  now >= new Date(start.setHours(0, 0, 0, 0)) &&
+                  now <= new Date(end.setHours(23, 59, 59, 999));
+
+                const label = `${start.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })} - ${end.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}${isActive ? ' - (Active)' : ''}`;
+
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setAllowance(item.amount);
+                      setLimit(item.limit);
+                      setStartDate(
+                        new Date(item.startDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }),
+                      );
+                      setEndDate(
+                        new Date(item.endDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }),
+                      );
+                      setActiveAllowanceId(item.id);
+                      setDropdownOpen(false);
+                    }}>
+                    <Text style={styles.dropdownText}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+        {isSelectedActive && (
+          <Text style={styles.allowanceHeader}>Active Allowance</Text>
+        )}
+        {hasExceededLimit && (
+          <Text style={styles.exceededWarning}>
+            ⚠️ You have exceeded your limit!
+          </Text>
+        )}
         <View style={styles.allowanceRow}>
-          <Text style={styles.allowanceLabel}>Total:</Text>
+          <Text style={styles.allowanceLabel}>Total Allowance:</Text>
           <Text style={styles.allowanceValue}>
             ₱{allowance.toLocaleString()}
           </Text>
@@ -143,6 +288,12 @@ export default function ExpensesScreen() {
         <View style={styles.allowanceRow}>
           <Text style={styles.allowanceLabel}>Limit:</Text>
           <Text style={styles.allowanceValue}>₱{limit.toLocaleString()}</Text>
+        </View>
+        <View style={styles.allowanceRow}>
+          <Text style={styles.allowanceLabel}>Total Expenses:</Text>
+          <Text style={styles.allowanceValue}>
+            ₱{totalSpent.toLocaleString()}
+          </Text>
         </View>
         <View style={styles.allowanceRow}>
           <Text style={styles.allowanceLabel}>Range:</Text>
@@ -302,6 +453,56 @@ const styles = StyleSheet.create({
     color: '#E53935',
     fontSize: 13,
     marginBottom: 12,
+    fontWeight: '500',
+  },
+  dropdownToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+  },
+  dropdownSelectedText: {
+    fontSize: 13,
+    color: '#1E2A38',
+  },
+  dropdownList: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  dropdownText: {
+    fontSize: 13,
+    color: '#444',
+  },
+  exceededWarning: {
+    color: '#D32F2F',
+    fontWeight: '600',
+    marginTop: 6,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F7F9FB',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#1E2A38',
     fontWeight: '500',
   },
 });

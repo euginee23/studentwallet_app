@@ -450,7 +450,9 @@ app.put('/api/allowances/:allowanceId/add', async (req, res) => {
     console.error('Failed to add to allowance:', err);
     res.status(500).json({error: 'Server error while updating allowance.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -631,6 +633,294 @@ app.get('/api/balance-history/:userId', async (req, res) => {
     if (connection) {
       connection.release();
     }
+  }
+});
+
+// ADD NEW GOAL
+app.post('/api/goals', async (req, res) => {
+  const {user_id, title, target_amount} = req.body;
+
+  if (!user_id || !title || !target_amount) {
+    return res.status(400).json({error: 'Missing required fields.'});
+  }
+
+  const createdAt = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    await connection.query(
+      `INSERT INTO savings_goals 
+       (user_id, title, goal_amount, current_amount, created_at)
+       VALUES (?, ?, ?, 0, ?)`,
+      [user_id, title, target_amount, createdAt],
+    );
+    res.json({success: true});
+  } catch (err) {
+    console.error('Add goal error:', err);
+    res.status(500).json({error: 'Failed to add goal.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH GOALS
+app.get('/api/goals/:userId', async (req, res) => {
+  const {userId} = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    const [rows] = await connection.query(
+      'SELECT * FROM savings_goals WHERE user_id = ? ORDER BY created_at ASC',
+      [userId],
+    );
+    res.json({goals: rows});
+  } catch (err) {
+    console.error('Fetch goals error:', err);
+    res.status(500).json({error: 'Failed to fetch goals.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// ADD AMOUNT TO GOAL AND LOG TO BALANCE_HISTORY
+app.put('/api/goals/:goalId/add', async (req, res) => {
+  const {goalId} = req.params;
+  const {amount, user_id, allowance_id, balance_type} = req.body;
+
+  if (!amount || isNaN(amount)) {
+    return res.status(400).json({error: 'Invalid amount.'});
+  }
+
+  if (!user_id || !allowance_id || !balance_type) {
+    return res
+      .status(400)
+      .json({error: 'Missing user_id, allowance_id, or balance_type.'});
+  }
+
+  const createdAt = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    await connection.query(
+      `UPDATE savings_goals 
+       SET current_amount = current_amount + ? 
+       WHERE goal_id = ?`,
+      [amount, goalId],
+    );
+
+    const description =
+      balance_type === 'Allowance Savings'
+        ? 'Savings Goal - Allowance Balance'
+        : 'Savings Goal - Allocation';
+
+    await connection.query(
+      `INSERT INTO balance_history 
+       (user_id, balance_type, category, description, amount, allowance_id, goal_id, created_at)
+       VALUES (?, ?, 'Savings', ?, ?, ?, ?, ?)`,
+      [
+        user_id,
+        balance_type,
+        description,
+        amount,
+        allowance_id,
+        goalId,
+        createdAt,
+      ],
+    );
+
+    res.json({success: true});
+  } catch (err) {
+    console.error('Add to goal error:', err);
+    res
+      .status(500)
+      .json({error: 'Failed to update goal and log balance history.'});
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// FETCH ALLOWANCE SUMMARY FOR SETTING GOALS
+app.get('/api/allowances-summary/:userId', async (req, res) => {
+  const {userId} = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [allowances] = await connection.query(
+      'SELECT * FROM allowances WHERE user_id = ? ORDER BY start_date DESC',
+      [userId],
+    );
+
+    if (allowances.length === 0) {
+      return res.json({summaries: []});
+    }
+
+    const allowanceIds = allowances.map(a => a.allowance_id);
+    const [transactions] = await connection.query(
+      `SELECT * FROM balance_history 
+       WHERE user_id = ? AND allowance_id IN (?)`,
+      [userId, allowanceIds],
+    );
+
+    const today = new Date();
+
+    const summaries = allowances.map(allowance => {
+      const relevant = transactions.filter(
+        t => t.allowance_id === allowance.allowance_id,
+      );
+
+      const totalExpenses = relevant
+        .filter(t => t.balance_type === 'Expense')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const allowanceSavings = relevant
+        .filter(t => t.balance_type === 'Allowance Savings')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const allocationSavings = relevant
+        .filter(t => t.balance_type === 'Allocation Savings')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const overspending = Math.max(
+        totalExpenses - allowance.spending_limit,
+        0,
+      );
+
+      const remainingBalance =
+        allowance.amount - totalExpenses - allowanceSavings;
+
+      const remainingAllocation = Math.max(
+        allowance.amount -
+          allowance.spending_limit -
+          allocationSavings -
+          overspending,
+        0,
+      );
+
+      const isActive =
+        today >= new Date(allowance.start_date) &&
+        today <= new Date(allowance.end_date);
+
+      return {
+        allowance_id: allowance.allowance_id,
+        amount: allowance.amount,
+        start_date: allowance.start_date,
+        end_date: allowance.end_date,
+        label: `${isActive ? 'Active' : 'Allowance'} (${
+          allowance.start_date
+        } - ${allowance.end_date})`,
+        isActive,
+        totalExpenses,
+        allowanceSavings,
+        allocationSavings,
+        spending_limit: allowance.spending_limit,
+        overspending,
+        remainingBalance: Math.max(remainingBalance, 0),
+        remainingLimit: Math.max(allowance.spending_limit - totalExpenses, 0),
+        remainingAllocation,
+      };
+    });
+
+    res.json({summaries});
+  } catch (err) {
+    console.error('Fetch allowance summary error:', err);
+    res.status(500).json({error: 'Failed to generate summary.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// FETCH GOAL SAVING HISTORY
+app.get('/api/goal-history/:goalId', async (req, res) => {
+  const {goalId} = req.params;
+  let connection;
+
+  try {
+    connection = await db.promise().getConnection();
+
+    const [goalRows] = await connection.query(
+      'SELECT * FROM savings_goals WHERE goal_id = ?',
+      [goalId],
+    );
+
+    if (goalRows.length === 0) {
+      return res.status(404).json({error: 'Goal not found.'});
+    }
+
+    const goal = goalRows[0];
+
+    const [historyRows] = await connection.query(
+      `SELECT bh.created_at, bh.amount, bh.balance_type, a.start_date, a.end_date
+       FROM balance_history bh
+       JOIN allowances a ON bh.allowance_id = a.allowance_id
+       WHERE bh.user_id = ? 
+         AND bh.goal_id = ?
+         AND (bh.balance_type = 'Allowance Savings' OR bh.balance_type = 'Allocation Savings')
+       ORDER BY bh.created_at DESC`,
+      [goal.user_id, goal.goal_id],
+    );
+
+    const history = historyRows.map(row => ({
+      date: row.created_at,
+      amount: row.amount,
+      source:
+        row.balance_type === 'Allowance Savings' ? 'Balance' : 'Allocation',
+      allowanceRange: `${new Date(
+        row.start_date,
+      ).toLocaleDateString()} - ${new Date(row.end_date).toLocaleDateString()}`,
+    }));
+
+    res.json({history});
+  } catch (err) {
+    console.error('Goal history fetch failed:', err);
+    res.status(500).json({error: 'Server error fetching goal history.'});
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// DELETE A GOAL
+app.delete('/api/goals/:goalId', async (req, res) => {
+  const {goalId} = req.params;
+  const {user_id} = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({error: 'Missing user ID.'});
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    // Delete related balance_history first
+    await connection.query(
+      'DELETE FROM balance_history WHERE user_id = ? AND goal_id = ?',
+      [user_id, goalId],
+    );
+
+    // Then delete the goal itself
+    await connection.query(
+      'DELETE FROM savings_goals WHERE goal_id = ? AND user_id = ?',
+      [goalId, user_id],
+    );
+
+    res.json({success: true, message: 'Goal deleted.'});
+  } catch (err) {
+    console.error('Delete goal error:', err);
+    res.status(500).json({error: 'Failed to delete goal.'});
+  } finally {
+    if (connection) {connection.release();}
   }
 });
 

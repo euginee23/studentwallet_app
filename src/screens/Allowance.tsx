@@ -53,10 +53,24 @@ export default function AllowanceScreen() {
     .flatMap(group => group.data)
     .filter(item => item.type === 'Expense')
     .reduce((sum, item) => sum + item.amount, 0);
-  const remainingBalance = allowance - totalExpenses;
+  const allowanceSavings = transactions
+    .flatMap(group => group.data)
+    .filter(item => item.type === 'Allowance Savings')
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const allocationSavings = transactions
+    .flatMap(group => group.data)
+    .filter(item => item.type === 'Allocation Savings')
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const remainingBalance = allowance - totalExpenses - allowanceSavings;
 
   const isOverLimit = totalExpenses > limit;
   const excess = isOverLimit ? totalExpenses - limit : 0;
+  const remainingAllocation = Math.max(
+    allowance - limit - allocationSavings - excess,
+    0,
+  );
 
   const fetchAllowance = useCallback(async () => {
     try {
@@ -194,12 +208,16 @@ export default function AllowanceScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         const history = data.history.filter((item: any) => {
-          const start = item.start_date;
-          const end = item.end_date;
-          return !(today >= start && today <= end);
+          const start = new Date(item.start_date);
+          const end = new Date(item.end_date);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+
+          return today < start || today > end;
         });
 
         setAllowanceHistory(history);
@@ -401,11 +419,9 @@ export default function AllowanceScreen() {
             </Text>
             <Text style={styles.bufferLeft}>
               Left: ₱
-              {isOverLimit
-                ? '0.00'
-                : (allowance - limit).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+              {remainingAllocation.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+              })}
             </Text>
           </View>
         )}
@@ -524,11 +540,19 @@ export default function AllowanceScreen() {
                             styles.transactionAmount,
                             {
                               color:
-                                item.type === 'Expense' ? '#E53935' : '#4CAF50',
+                                item.type === 'Expense'
+                                  ? '#E53935'
+                                  : item.type === 'Allowance Savings' ||
+                                    item.type === 'Allocation Savings'
+                                  ? '#FB8C00'
+                                  : '#4CAF50',
                             },
                           ]}>
-                          {item.type === 'Expense' ? '-' : '+'}₱
-                          {item.amount.toFixed(2)}
+                          {item.type === 'Expense' ||
+                          item.type.includes('Savings')
+                            ? '-'
+                            : '+'}
+                          ₱{item.amount.toFixed(2)}
                         </Text>
                       </View>
                     ))}
@@ -564,11 +588,18 @@ export default function AllowanceScreen() {
                                 color:
                                   item.type === 'Expense'
                                     ? '#E53935'
+                                    : item.type === 'Allowance Savings' ||
+                                      item.type === 'Allocation Savings'
+                                    ? '#FB8C00'
                                     : '#4CAF50',
                               },
                             ]}>
-                            {item.type === 'Expense' ? '-' : '+'}₱
-                            {item.amount.toFixed(2)}
+                            {item.type === 'Expense' ||
+                            item.type === 'Allowance Savings' ||
+                            item.type === 'Allocation Savings'
+                              ? '-'
+                              : '+'}
+                            ₱{item.amount.toFixed(2)}
                           </Text>
                         </View>
                       ))}
@@ -642,11 +673,19 @@ export default function AllowanceScreen() {
                                       color:
                                         tx.balance_type === 'Expense'
                                           ? '#E53935'
+                                          : tx.balance_type ===
+                                              'Allowance Savings' ||
+                                            tx.balance_type ===
+                                              'Allocation Savings'
+                                          ? '#FB8C00'
                                           : '#4CAF50',
                                     },
                                   ]}>
-                                  {tx.balance_type === 'Expense' ? '-' : '+'}₱
-                                  {Number(tx.amount).toFixed(2)}
+                                  {tx.balance_type === 'Expense' ||
+                                  tx.balance_type.includes('Savings')
+                                    ? '-'
+                                    : '+'}
+                                  ₱{Number(tx.amount).toFixed(2)}
                                 </Text>
                               </View>
                             ),

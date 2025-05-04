@@ -1,5 +1,12 @@
 import React from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import Modal from 'react-native-modal';
 
 interface Props {
@@ -10,6 +17,7 @@ interface Props {
   onChangeTargetAmount: (text: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  loading?: boolean; // <-- new prop
 }
 
 export default function AddGoalModal({
@@ -20,24 +28,27 @@ export default function AddGoalModal({
   onChangeTargetAmount,
   onSave,
   onCancel,
+  loading = false,
 }: Props) {
   return (
     <Modal
       isVisible={visible}
-      backdropOpacity={0.5}
+      backdropOpacity={0.4}
       animationIn="zoomIn"
       animationOut="zoomOut"
-      onBackdropPress={onCancel}
-      onBackButtonPress={onCancel}
+      onBackdropPress={loading ? undefined : onCancel}
+      onBackButtonPress={loading ? undefined : onCancel}
+      style={styles.centered}
     >
       <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Add New Goal</Text>
+        <Text style={styles.modalTitle}>New Goal</Text>
 
         <TextInput
           style={styles.input}
           placeholder="Goal Name"
           value={goalName}
           onChangeText={onChangeGoalName}
+          editable={!loading}
         />
 
         <TextInput
@@ -46,22 +57,27 @@ export default function AddGoalModal({
           keyboardType="numeric"
           value={targetAmount}
           onChangeText={onChangeTargetAmount}
+          editable={!loading}
         />
 
         <View style={styles.modalActions}>
           <TouchableOpacity
-            style={[styles.modalButton, { backgroundColor: '#4CAF50' }]}
+            style={[styles.modalButton, styles.save, loading && { opacity: 0.7 }]}
             onPress={onSave}
+            disabled={loading}
           >
-            <Text style={styles.modalButtonText}>Save</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.modalButtonText}>Save</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modalButton, { backgroundColor: '#ccc' }]}
+            style={[styles.modalButton, styles.cancel]}
             onPress={onCancel}
+            disabled={loading}
           >
-            <Text style={[styles.modalButtonText, { color: '#333' }]}>
-              Cancel
-            </Text>
+            <Text style={[styles.modalButtonText, { color: '#333' }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -70,42 +86,53 @@ export default function AddGoalModal({
 }
 
 const styles = StyleSheet.create({
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+  centered: {
+    justifyContent: 'center',
     alignItems: 'center',
   },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    width: '90%',
+  },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1E2A38',
-    marginBottom: 20,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   input: {
     width: '100%',
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginBottom: 15,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    marginBottom: 10,
   },
   modalActions: {
     flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 6,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    marginHorizontal: 5,
+  },
+  save: {
+    backgroundColor: '#4CAF50',
+  },
+  cancel: {
+    backgroundColor: '#ccc',
   },
   modalButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#fff',
   },
