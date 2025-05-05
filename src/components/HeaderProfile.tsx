@@ -19,7 +19,7 @@ export default function HeaderProfileButton() {
   useEffect(() => {
     const loadProfileImage = async () => {
       const user = await getUser();
-      if (!user?.user_id) return;
+      if (!user?.user_id) {return;}
 
       try {
         const response = await fetch(`${process.env.API_BASE_URL}/api/profile/${user.user_id}`);

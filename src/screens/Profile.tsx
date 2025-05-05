@@ -43,7 +43,7 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       const localUser = await getUser();
-      if (!localUser?.user_id) return;
+      if (!localUser?.user_id) {return;}
 
       const response = await fetch(
         `${process.env.API_BASE_URL}/api/profile/${localUser.user_id}`,
@@ -51,7 +51,7 @@ export default function ProfileScreen() {
       const result = await response.json();
 
       if (!response.ok)
-        throw new Error(result.error || 'Failed to fetch profile');
+        {throw new Error(result.error || 'Failed to fetch profile');}
 
       setUser(result.user);
       setFirstName(result.user.first_name || '');
@@ -61,7 +61,7 @@ export default function ProfileScreen() {
       setContactNumber(result.user.contact_number || '');
       setOriginalUsername(result.user.username || '');
 
-      if (result.image) setProfileImage(result.image);
+      if (result.image) {setProfileImage(result.image);}
     } catch (err) {
       console.error('Profile fetch error:', err);
       Alert.alert('Failed to load profile');
@@ -130,7 +130,7 @@ export default function ProfileScreen() {
   };
 
   const handleUpdate = async () => {
-    if (!user?.user_id) return;
+    if (!user?.user_id) {return;}
 
     const updatedFields: any = {};
 
@@ -150,8 +150,8 @@ export default function ProfileScreen() {
     const usernameChanged = user.username !== originalUsername;
     const emailChanged = email !== user.email;
 
-    if (usernameChanged) updatedFields.username = user.username;
-    if (emailChanged) updatedFields.email = email;
+    if (usernameChanged) {updatedFields.username = user.username;}
+    if (emailChanged) {updatedFields.email = email;}
 
     if (Object.keys(updatedFields).length === 0) {
       Alert.alert('No changes to update.');

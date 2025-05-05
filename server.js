@@ -37,6 +37,21 @@ db.getConnection((err, connection) => {
   }
 });
 
+// START TEST ENDPOINT
+app.get('/', async (req, res) => {
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    await connection.ping();
+    res.send('Student Wallet Node.js is running and database is connected.');
+  } catch (error) {
+    console.error('DB check failed at / endpoint:', error.message);
+    res.status(500).send('Server is up but failed to connect to the database.');
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
 // REGISTER
 app.post('/api/register', async (req, res) => {
   const {
