@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useEffect, useState, useCallback} from 'react';
 import {
   View,
   Text,
@@ -6,36 +6,77 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
-import { notifications as notificationsData } from '../data/notificationsData';
-import { sendLocalNotification } from '../config/PushNotificationService';
+import {
+  fetchNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  deleteAllNotifications,
+} from '../config/notificationService';
+import {getUser} from '../utils/authStorage';
 
 export default function NotificationsScreen() {
-  const [notifications, setNotifications] = useState(notificationsData);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<number | null>(null);
 
-  const markAsRead = (id: number) => {
-    const updated = notifications.map(n =>
-      n.id === id ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-  };
-
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setNotifications([...notificationsData]);
+  const loadNotifications = useCallback(async () => {
+    try {
+      const user = await getUser();
+      if (user?.user_id) {
+        setUserId(user.user_id);
+        const data = await fetchNotifications(user.user_id);
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
       setRefreshing(false);
-    }, 500);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  const handleMarkAsRead = async (id: number) => {
+    if (!id) {
+      return;
+    }
+    await markNotificationAsRead(id);
+    loadNotifications();
   };
 
-  const handleTestNotification = () => {
-    sendLocalNotification('Test Notification', 'This is a local test alert.');
+  const handleMarkAllAsRead = async () => {
+    if (userId) {
+      await markAllNotificationsAsRead(userId);
+      loadNotifications();
+    }
+  };
+
+  const handleDeleteNotification = async (id: number) => {
+    if (!userId) {
+      return;
+    }
+    await deleteNotification(id, userId);
+    loadNotifications();
+  };
+
+  const handleDeleteAll = async () => {
+    if (!userId) {
+      return;
+    }
+    await deleteAllNotifications(userId);
+    loadNotifications();
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadNotifications();
   };
 
   return (
@@ -44,40 +85,64 @@ export default function NotificationsScreen() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={onRefresh}
+          onRefresh={handleRefresh}
           colors={['#4CAF50']}
         />
-      }
-    >
+      }>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Budget Alerts & Reminders</Text>
-        <TouchableOpacity onPress={markAllAsRead}>
-          <Text style={styles.markAllText}>Mark All as Read</Text>
-        </TouchableOpacity>
+        <View style={{flexDirection: 'row', gap: 10}}>
+          <TouchableOpacity onPress={handleMarkAllAsRead}>
+            <Text style={styles.markAllText}>Mark All Read</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDeleteAll}>
+            <Text style={[styles.markAllText, {color: '#E53935'}]}>
+              Clear All
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* 🔔 Test Notification Button */}
-      <TouchableOpacity style={styles.testButton} onPress={handleTestNotification}>
-        <Text style={styles.testButtonText}>Send Test Notification</Text>
-      </TouchableOpacity>
-
-      {notifications.map((notif) => (
-        <View key={notif.id} style={styles.alertCard}>
-          <View style={styles.alertContent}>
-            <Text style={styles.alertTitle}>{notif.title}</Text>
+      {loading ? (
+        <ActivityIndicator size="large" color="#4CAF50" />
+      ) : notifications.length === 0 ? (
+        <Text style={{textAlign: 'center', color: '#999'}}>
+          No notifications yet.
+        </Text>
+      ) : (
+        notifications.map(notif => (
+          <View key={notif.notification_id} style={styles.alertCard}>
+            <View style={styles.alertHeader}>
+              <Text style={styles.alertTitle}>{notif.title}</Text>
+              <TouchableOpacity
+                onPress={() => handleDeleteNotification(notif.notification_id)}>
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.alertText}>{notif.message}</Text>
-          </View>
+            <Text style={styles.timestamp}>
+              {new Date(notif.created_at).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}{' '}
+              at{' '}
+              {new Date(notif.created_at).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </Text>
 
-          {!notif.read && (
-            <TouchableOpacity
-              style={styles.markAsReadButton}
-              onPress={() => markAsRead(notif.id)}
-            >
-              <Text style={styles.markAsReadText}>Mark as Read</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ))}
+            {!notif.is_read && (
+              <TouchableOpacity
+                style={styles.markAsReadButton}
+                onPress={() => handleMarkAsRead(notif.notification_id)}>
+                <Text style={styles.markAsReadText}>Mark as Read</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -86,6 +151,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     backgroundColor: '#F7F9FB',
+    minHeight: '100%',
   },
   headerRow: {
     flexDirection: 'row',
@@ -103,18 +169,6 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
-  testButton: {
-    backgroundColor: '#E0F2F1',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  testButtonText: {
-    color: '#00796B',
-    fontWeight: '600',
-    fontSize: 14,
-  },
   alertCard: {
     backgroundColor: '#fff',
     borderRadius: 14,
@@ -123,21 +177,29 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: {width: 0, height: 3},
     shadowRadius: 5,
   },
-  alertContent: {
-    marginBottom: 10,
+  alertHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  closeText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#E53935',
   },
   alertTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1E2A38',
-    marginBottom: 6,
   },
   alertText: {
     fontSize: 14,
     color: '#555',
+    marginBottom: 10,
   },
   markAsReadButton: {
     alignSelf: 'flex-start',
@@ -150,5 +212,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '500',
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: -4,
+    marginBottom: 6,
   },
 });

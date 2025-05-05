@@ -311,7 +311,7 @@ export default function GoalSettingScreen() {
         selectedAllowance.overspending > 0 ? (
           <View style={styles.overspendingBox}>
             <Text style={styles.overspendingText}>
-              {`Your limit is: ₱${
+              {`Limit for this week is: ₱${
                 selectedAllowance.spendingLimit?.toLocaleString() ?? '0'
               } and you have overspent by ₱${
                 selectedAllowance.overspending?.toLocaleString() ?? '0'

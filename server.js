@@ -1236,6 +1236,142 @@ app.get('/api/spending-breakdown/:userId', async (req, res) => {
   }
 });
 
+// CREATE NOTIFICATION
+app.post('/api/notifications', async (req, res) => {
+  const { user_id, title, message } = req.body;
+
+  if (!user_id || !title || !message) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  const createdAt = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    const [result] = await connection.query(
+      `INSERT INTO notifications (user_id, title, message, is_read, created_at)
+       VALUES (?, ?, ?, 0, ?)`,
+      [user_id, title, message, createdAt]
+    );
+
+    res.json({ success: true, notification_id: result.insertId });
+  } catch (err) {
+    console.error('Create notification error:', err);
+    res.status(500).json({ error: 'Failed to create notification.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// FETCH NOTIFICATION FOR A USER
+app.get('/api/notifications/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    const [rows] = await connection.query(
+      'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json({ notifications: rows });
+  } catch (err) {
+    console.error('Fetch notifications error:', err);
+    res.status(500).json({ error: 'Failed to fetch notifications.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// MARK NOTIFICATION AS READ FOR A USER
+app.put('/api/notifications/:id/read', async (req, res) => {
+  const { id } = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    await connection.query(
+      'UPDATE notifications SET is_read = 1 WHERE notification_id = ?',
+      [id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark as read error:', err);
+    res.status(500).json({ error: 'Failed to update read status.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// MARK ALL NOTIFICATION AS READ FOR A USER
+app.put('/api/notifications/:userId/mark-all-read', async (req, res) => {
+  const { userId } = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+    await connection.query(
+      'UPDATE notifications SET is_read = 1 WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Mark all as read error:', err);
+    res.status(500).json({ error: 'Failed to mark all as read.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// DELETE NOTIFICATION BY ID AND USER_ID
+app.delete('/api/notifications/:notificationId/:userId', async (req, res) => {
+  const { notificationId, userId } = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [result] = await connection.query(
+      'DELETE FROM notifications WHERE notification_id = ? AND user_id = ?',
+      [notificationId, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Notification not found or not authorized.' });
+    }
+
+    res.json({ success: true, message: 'Notification deleted.' });
+  } catch (err) {
+    console.error('Delete notification error:', err);
+    res.status(500).json({ error: 'Failed to delete notification.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
+// DELETE ALL NOTIFICATIONS FOR A USER
+app.delete('/api/notifications/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [result] = await connection.query(
+      'DELETE FROM notifications WHERE user_id = ?',
+      [userId]
+    );
+
+    res.json({ success: true, message: `${result.affectedRows} notifications deleted.` });
+  } catch (err) {
+    console.error('Delete all notifications error:', err);
+    res.status(500).json({ error: 'Failed to delete all notifications.' });
+  } finally {
+    if (connection) {connection.release();}
+  }
+});
+
 // START SERVER
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

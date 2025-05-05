@@ -13,6 +13,7 @@ import {getUser} from '../utils/authStorage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import SetAllowanceModal from '../modals/SetAllowanceModal';
 import AddAllowanceModal from '../modals/AddAllowance';
+import {sendLocalNotification} from '../config/PushNotificationService';
 
 export default function AllowanceScreen() {
   const [loading, setLoading] = useState(true);
@@ -126,6 +127,12 @@ export default function AllowanceScreen() {
     try {
       if (!activeAllowanceId) {
         setTransactions([]);
+
+        await sendLocalNotification(
+          'No Active Allowance!',
+          'You currently have no active allowance. Set one to start tracking your expenses.',
+        );
+
         return;
       }
 
@@ -138,6 +145,17 @@ export default function AllowanceScreen() {
       if (response.ok && Array.isArray(data.history)) {
         const grouped = groupByDate(data.history);
         setTransactions(grouped);
+
+        const totalExpenses = data.history
+          .filter((item: any) => item.balance_type === 'Expense')
+          .reduce((sum: number, item: any) => sum + Number(item.amount), 0);
+
+        if (limit > 0 && totalExpenses > limit) {
+          await sendLocalNotification(
+            'Spending Limit Exceeded!',
+            `You've spent ₱${totalExpenses.toLocaleString()} which exceeds your ₱${limit.toLocaleString()} limit.`,
+          );
+        }
       } else {
         console.error('Error fetching balance history:', data.error);
         setTransactions([]);
@@ -146,7 +164,7 @@ export default function AllowanceScreen() {
       console.error('Balance history fetch error:', err);
       setTransactions([]);
     }
-  }, [activeAllowanceId]);
+  }, [activeAllowanceId, limit]);
 
   const groupByDate = (
     entries: {
