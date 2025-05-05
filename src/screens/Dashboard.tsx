@@ -294,34 +294,44 @@ export default function DashboardScreen() {
 
           <View style={styles.chartCard}>
             <Text style={styles.sectionTitle}>Spending Breakdown</Text>
-            <PieChart
-              data={pieChartData}
-              width={screenWidth - 60}
-              height={180}
-              chartConfig={{
-                color: () => '#333',
-                labelColor: () => '#333',
-              }}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="10"
-              absolute
-            />
+
+            {pieChartData.length === 0 ? (
+              <Text style={styles.emptyText}>No spending data available.</Text>
+            ) : (
+              <PieChart
+                data={pieChartData}
+                width={screenWidth - 60}
+                height={180}
+                chartConfig={{
+                  color: () => '#333',
+                  labelColor: () => '#333',
+                }}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="10"
+                absolute
+              />
+            )}
           </View>
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Expense Categories</Text>
-            {spendingBreakdown.map((item, index) => (
-              <View key={index} style={styles.expenseRow}>
-                <View
-                  style={[styles.colorDot, {backgroundColor: item.color}]}
-                />
-                <Text style={styles.expenseLabel}>{item.name}</Text>
-                <Text style={styles.expenseAmount}>
-                  ₱{item.amount.toFixed(2)}
-                </Text>
-              </View>
-            ))}
+
+            {spendingBreakdown.length === 0 ? (
+              <Text style={styles.emptyText}>No categories available.</Text>
+            ) : (
+              spendingBreakdown.map((item, index) => (
+                <View key={index} style={styles.expenseRow}>
+                  <View
+                    style={[styles.colorDot, {backgroundColor: item.color}]}
+                  />
+                  <Text style={styles.expenseLabel}>{item.name}</Text>
+                  <Text style={styles.expenseAmount}>
+                    ₱{item.amount.toFixed(2)}
+                  </Text>
+                </View>
+              ))
+            )}
           </View>
         </View>
       </View>
@@ -468,6 +478,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#333',
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#999',
+    marginVertical: 10,
   },
   loadingContainer: {
     flex: 1,

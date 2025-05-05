@@ -48,7 +48,9 @@ app.get('/', async (req, res) => {
     console.error('DB check failed at / endpoint:', error.message);
     res.status(500).send('Server is up but failed to connect to the database.');
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -359,14 +361,33 @@ app.put('/api/profile/:userId', async (req, res) => {
       username: username ?? current.username,
     };
 
-    const [conflict] = await connection.query(
-      `SELECT user_id FROM users 
-       WHERE (email = ? OR username = ?) 
-       AND user_id != ?`,
-      [updatedFields.email, updatedFields.username, userId],
-    );
-    if (conflict.length > 0) {
-      return res.status(400).json({error: 'Email or username already taken.'});
+    const conflictQueryParts = [];
+    const conflictParams = [];
+
+    if (email !== undefined && email !== current.email) {
+      conflictQueryParts.push('email = ?');
+      conflictParams.push(email);
+    }
+
+    if (username !== undefined && username !== current.username) {
+      conflictQueryParts.push('username = ?');
+      conflictParams.push(username);
+    }
+
+    if (conflictQueryParts.length > 0) {
+      const query = `
+        SELECT user_id FROM users
+        WHERE (${conflictQueryParts.join(' OR ')})
+        AND user_id != ?
+      `;
+      conflictParams.push(userId);
+
+      const [conflict] = await connection.query(query, conflictParams);
+      if (conflict.length > 0) {
+        return res
+          .status(400)
+          .json({error: 'Email or username already taken.'});
+      }
     }
 
     let updateQuery = `
@@ -400,7 +421,7 @@ app.put('/api/profile/:userId', async (req, res) => {
 
     res.json({success: true, message: 'Profile updated successfully.'});
   } catch (error) {
-    console.error('Partial update error:', error);
+    console.error('Profile update error:', error);
     res.status(500).json({error: 'Failed to update profile.'});
   } finally {
     if (connection) {
@@ -411,10 +432,14 @@ app.put('/api/profile/:userId', async (req, res) => {
 
 // SEND CODE UPDATE
 app.post('/api/send-update-code', async (req, res) => {
-  const {email, user_id} = req.body;
+  const {email, username, user_id} = req.body;
 
   if (!user_id) {
     return res.status(400).json({error: 'User ID is required.'});
+  }
+
+  if (!email && !username) {
+    return res.status(400).json({error: 'No updated fields provided.'});
   }
 
   let connection;
@@ -422,12 +447,41 @@ app.post('/api/send-update-code', async (req, res) => {
     connection = await db.promise().getConnection();
 
     const [users] = await connection.query(
-      'SELECT user_id, first_name, email FROM users WHERE user_id = ?',
+      'SELECT user_id, first_name FROM users WHERE user_id = ?',
       [user_id],
     );
 
     if (users.length === 0) {
       return res.status(404).json({error: 'User not found.'});
+    }
+
+    const conflictQueryParts = [];
+    const conflictParams = [];
+
+    if (email) {
+      conflictQueryParts.push('email = ?');
+      conflictParams.push(email);
+    }
+
+    if (username) {
+      conflictQueryParts.push('username = ?');
+      conflictParams.push(username);
+    }
+
+    if (conflictQueryParts.length > 0) {
+      const conflictQuery = `
+        SELECT user_id FROM users
+        WHERE (${conflictQueryParts.join(' OR ')})
+        AND user_id != ?
+      `;
+      conflictParams.push(user_id);
+
+      const [conflicts] = await connection.query(conflictQuery, conflictParams);
+      if (conflicts.length > 0) {
+        return res
+          .status(409)
+          .json({error: 'Email or username already taken.'});
+      }
     }
 
     const user = users[0];
@@ -449,28 +503,20 @@ app.post('/api/send-update-code', async (req, res) => {
       },
     });
 
-    await transporter
-      .sendMail({
-        from: `"Student Wallet App" <${process.env.SMTP_USER}>`,
-        to: user.email,
-        subject: 'Verification Code for Update',
-        html: `<p>Hello ${user.first_name},</p><p>Your update verification code is:</p><h2>${code}</h2>`,
-      })
-      .then(() => {
-        console.log('Verification email sent to:', user.email);
-      })
-      .catch(err => {
-        console.error('Email send error:', err);
-      });
+    await transporter.sendMail({
+      from: `"Student Wallet App" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Verification Code for Update',
+      html: `<p>Hello ${user.first_name},</p><p>Your update verification code is:</p><h2>${code}</h2>`,
+    });
 
+    console.log('Verification email sent to:', email);
     res.json({success: true, message: 'Verification code sent.'});
   } catch (err) {
     console.error('Send update code error:', err);
     res.status(500).json({error: 'Failed to send verification code.'});
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    if (connection) connection.release();
   }
 });
 
