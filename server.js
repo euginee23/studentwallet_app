@@ -7,6 +7,9 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const moment = require('moment-timezone');
+const multer = require('multer');
+const storage = multer.memoryStorage();
+const upload = multer({storage});
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -207,51 +210,296 @@ app.post('/api/check-user', async (req, res) => {
   }
 });
 
-// VERIFICATION
-app.post('/api/verify', async (req, res) => {
-  const {email, code} = req.body;
+// SAVE / UPDATE PROFILE IMAGE
+app.post(
+  '/api/profile-image/:userId',
+  upload.single('image'),
+  async (req, res) => {
+    const {userId} = req.params;
+    const imageBuffer = req.file?.buffer;
+    const mimeType = req.file?.mimetype;
+
+    if (!imageBuffer || !mimeType) {
+      return res
+        .status(400)
+        .json({error: 'No image uploaded or missing MIME type.'});
+    }
+
+    let connection;
+    try {
+      connection = await db.promise().getConnection();
+
+      const [existing] = await connection.query(
+        'SELECT image_id FROM profile_images WHERE user_id = ?',
+        [userId],
+      );
+
+      if (existing.length > 0) {
+        await connection.query(
+          'UPDATE profile_images SET image_data = ?, mime_type = ? WHERE user_id = ?',
+          [imageBuffer, mimeType, userId],
+        );
+      } else {
+        await connection.query(
+          'INSERT INTO profile_images (user_id, image_data, mime_type) VALUES (?, ?, ?)',
+          [userId, imageBuffer, mimeType],
+        );
+      }
+
+      res.json({success: true, message: 'Profile image saved.'});
+    } catch (err) {
+      console.error('Image upload error:', err);
+      res.status(500).json({error: 'Failed to save profile image.'});
+    } finally {
+      if (connection) {
+        connection.release();
+      }
+    }
+  },
+);
+
+// GET FULL PROFILE INFO + IMAGE
+app.get('/api/profile/:userId', async (req, res) => {
+  const {userId} = req.params;
+  let connection;
+
+  try {
+    connection = await db.promise().getConnection();
+
+    const [userRows] = await connection.query(
+      `SELECT user_id, first_name, middle_name, last_name, email, contact_number, username 
+       FROM users 
+       WHERE user_id = ?`,
+      [userId],
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({error: 'User not found.'});
+    }
+
+    const user = userRows[0];
+
+    const [imageRows] = await connection.query(
+      `SELECT image_data, mime_type 
+       FROM profile_images 
+       WHERE user_id = ?`,
+      [userId],
+    );
+
+    let imageBase64 = null;
+    let mimeType = null;
+
+    if (imageRows.length > 0) {
+      imageBase64 = imageRows[0].image_data.toString('base64');
+      mimeType = imageRows[0].mime_type;
+    }
+
+    res.json({
+      user,
+      image: imageBase64 ? `data:${mimeType};base64,${imageBase64}` : null,
+    });
+  } catch (err) {
+    console.error('Fetch profile data error:', err);
+    res.status(500).json({error: 'Failed to fetch profile data.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// UPDATE PROFILE
+app.put('/api/profile/:userId', async (req, res) => {
+  const {userId} = req.params;
+  const {
+    first_name,
+    middle_name,
+    last_name,
+    email,
+    contact_number,
+    username,
+    password,
+  } = req.body;
 
   let connection;
   try {
     connection = await db.promise().getConnection();
 
-    const [userRows] = await connection.query(
-      'SELECT user_id FROM users WHERE email = ?',
-      [email],
-    );
-    if (userRows.length === 0) {
-      return res.status(400).json({error: 'User not found.'});
-    }
-    const userId = userRows[0].user_id;
-
-    const [codeRows] = await connection.query(
-      `SELECT * FROM verification_codes 
-       WHERE user_id = ? AND verification_type = 'register' 
-       ORDER BY created_at DESC 
-       LIMIT 1`,
+    const [users] = await connection.query(
+      'SELECT * FROM users WHERE user_id = ?',
       [userId],
     );
+    if (users.length === 0) {
+      return res.status(404).json({error: 'User not found.'});
+    }
 
-    if (codeRows.length === 0) {
+    const current = users[0];
+
+    const updatedFields = {
+      first_name: first_name ?? current.first_name,
+      middle_name: middle_name ?? current.middle_name,
+      last_name: last_name ?? current.last_name,
+      email: email ?? current.email,
+      contact_number: contact_number ?? current.contact_number,
+      username: username ?? current.username,
+    };
+
+    const [conflict] = await connection.query(
+      `SELECT user_id FROM users 
+       WHERE (email = ? OR username = ?) 
+       AND user_id != ?`,
+      [updatedFields.email, updatedFields.username, userId],
+    );
+    if (conflict.length > 0) {
+      return res.status(400).json({error: 'Email or username already taken.'});
+    }
+
+    let updateQuery = `
+      UPDATE users SET 
+        first_name = ?, 
+        middle_name = ?, 
+        last_name = ?, 
+        email = ?, 
+        contact_number = ?, 
+        username = ?
+    `;
+    const params = [
+      updatedFields.first_name,
+      updatedFields.middle_name,
+      updatedFields.last_name,
+      updatedFields.email,
+      updatedFields.contact_number,
+      updatedFields.username,
+    ];
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateQuery += ', password = ?';
+      params.push(hashedPassword);
+    }
+
+    updateQuery += ' WHERE user_id = ?';
+    params.push(userId);
+
+    await connection.query(updateQuery, params);
+
+    res.json({success: true, message: 'Profile updated successfully.'});
+  } catch (error) {
+    console.error('Partial update error:', error);
+    res.status(500).json({error: 'Failed to update profile.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// SEND CODE UPDATE
+app.post('/api/send-update-code', async (req, res) => {
+  const {email, user_id} = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({error: 'User ID is required.'});
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [users] = await connection.query(
+      'SELECT user_id, first_name, email FROM users WHERE user_id = ?',
+      [user_id],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({error: 'User not found.'});
+    }
+
+    const user = users[0];
+    const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+
+    await connection.query(
+      `INSERT INTO verification_codes (user_id, verification_code, verification_type)
+       VALUES (?, ?, 'update')`,
+      [user.user_id, code],
+    );
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT, 10),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    await transporter
+      .sendMail({
+        from: `"Student Wallet App" <${process.env.SMTP_USER}>`,
+        to: user.email,
+        subject: 'Verification Code for Update',
+        html: `<p>Hello ${user.first_name},</p><p>Your update verification code is:</p><h2>${code}</h2>`,
+      })
+      .then(() => {
+        console.log('Verification email sent to:', user.email);
+      })
+      .catch(err => {
+        console.error('Email send error:', err);
+      });
+
+    res.json({success: true, message: 'Verification code sent.'});
+  } catch (err) {
+    console.error('Send update code error:', err);
+    res.status(500).json({error: 'Failed to send verification code.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// VERIFICATION UPDATE
+app.post('/api/verify-update', async (req, res) => {
+  const {user_id, code} = req.body;
+
+  if (!user_id || !code) {
+    return res.status(400).json({error: 'User ID and code are required.'});
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [users] = await connection.query(
+      'SELECT user_id FROM users WHERE user_id = ?',
+      [user_id],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({error: 'User not found.'});
+    }
+
+    const [codes] = await connection.query(
+      `SELECT verification_code FROM verification_codes 
+       WHERE user_id = ? AND verification_type = 'update' 
+       ORDER BY created_at DESC LIMIT 1`,
+      [user_id],
+    );
+
+    if (codes.length === 0) {
       return res.status(400).json({error: 'No verification code found.'});
     }
 
-    const latestCode = codeRows[0].verification_code;
-    if (code.trim().toUpperCase() !== latestCode.toUpperCase()) {
+    const latestCode = codes[0].verification_code;
+
+    if (latestCode !== code.trim().toUpperCase()) {
       return res.status(400).json({error: 'Invalid verification code.'});
     }
 
-    await connection.query(
-      'UPDATE users SET is_verified = TRUE WHERE user_id = ?',
-      [userId],
-    );
-
-    res.json({
-      success: true,
-      message: 'Verification successful. You can now log in.',
-    });
-  } catch (error) {
-    console.error('Verification error:', error);
+    res.json({success: true, message: 'Code verified.'});
+  } catch (err) {
+    console.error('Verify update code error:', err);
     res.status(500).json({error: 'Verification failed.'});
   } finally {
     if (connection) {
@@ -354,6 +602,36 @@ app.post('/api/allowances', async (req, res) => {
   } catch (error) {
     console.error('Insert allowance error:', error);
     res.status(500).json({error: 'Failed to save allowance.'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+// CHANGE PASSWORD
+app.put('/api/profile/change-password/:user_id', async (req, res) => {
+  const {user_id} = req.params;
+  const {password} = req.body;
+
+  if (!password) {
+    return res.status(400).json({error: 'Password is required.'});
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await connection.query('UPDATE users SET password = ? WHERE user_id = ?', [
+      hashedPassword,
+      user_id,
+    ]);
+
+    res.json({success: true, message: 'Password updated successfully.'});
+  } catch (err) {
+    console.error('Password update error:', err);
+    res.status(500).json({error: 'Failed to update password.'});
   } finally {
     if (connection) {
       connection.release();
@@ -1238,10 +1516,10 @@ app.get('/api/spending-breakdown/:userId', async (req, res) => {
 
 // CREATE NOTIFICATION
 app.post('/api/notifications', async (req, res) => {
-  const { user_id, title, message } = req.body;
+  const {user_id, title, message} = req.body;
 
   if (!user_id || !title || !message) {
-    return res.status(400).json({ error: 'Missing required fields.' });
+    return res.status(400).json({error: 'Missing required fields.'});
   }
 
   const createdAt = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
@@ -1252,81 +1530,89 @@ app.post('/api/notifications', async (req, res) => {
     const [result] = await connection.query(
       `INSERT INTO notifications (user_id, title, message, is_read, created_at)
        VALUES (?, ?, ?, 0, ?)`,
-      [user_id, title, message, createdAt]
+      [user_id, title, message, createdAt],
     );
 
-    res.json({ success: true, notification_id: result.insertId });
+    res.json({success: true, notification_id: result.insertId});
   } catch (err) {
     console.error('Create notification error:', err);
-    res.status(500).json({ error: 'Failed to create notification.' });
+    res.status(500).json({error: 'Failed to create notification.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // FETCH NOTIFICATION FOR A USER
 app.get('/api/notifications/:userId', async (req, res) => {
-  const { userId } = req.params;
+  const {userId} = req.params;
 
   let connection;
   try {
     connection = await db.promise().getConnection();
     const [rows] = await connection.query(
       'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-      [userId]
+      [userId],
     );
-    res.json({ notifications: rows });
+    res.json({notifications: rows});
   } catch (err) {
     console.error('Fetch notifications error:', err);
-    res.status(500).json({ error: 'Failed to fetch notifications.' });
+    res.status(500).json({error: 'Failed to fetch notifications.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // MARK NOTIFICATION AS READ FOR A USER
 app.put('/api/notifications/:id/read', async (req, res) => {
-  const { id } = req.params;
+  const {id} = req.params;
 
   let connection;
   try {
     connection = await db.promise().getConnection();
     await connection.query(
       'UPDATE notifications SET is_read = 1 WHERE notification_id = ?',
-      [id]
+      [id],
     );
-    res.json({ success: true });
+    res.json({success: true});
   } catch (err) {
     console.error('Mark as read error:', err);
-    res.status(500).json({ error: 'Failed to update read status.' });
+    res.status(500).json({error: 'Failed to update read status.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // MARK ALL NOTIFICATION AS READ FOR A USER
 app.put('/api/notifications/:userId/mark-all-read', async (req, res) => {
-  const { userId } = req.params;
+  const {userId} = req.params;
 
   let connection;
   try {
     connection = await db.promise().getConnection();
     await connection.query(
       'UPDATE notifications SET is_read = 1 WHERE user_id = ?',
-      [userId]
+      [userId],
     );
-    res.json({ success: true });
+    res.json({success: true});
   } catch (err) {
     console.error('Mark all as read error:', err);
-    res.status(500).json({ error: 'Failed to mark all as read.' });
+    res.status(500).json({error: 'Failed to mark all as read.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // DELETE NOTIFICATION BY ID AND USER_ID
 app.delete('/api/notifications/:notificationId/:userId', async (req, res) => {
-  const { notificationId, userId } = req.params;
+  const {notificationId, userId} = req.params;
 
   let connection;
   try {
@@ -1334,25 +1620,29 @@ app.delete('/api/notifications/:notificationId/:userId', async (req, res) => {
 
     const [result] = await connection.query(
       'DELETE FROM notifications WHERE notification_id = ? AND user_id = ?',
-      [notificationId, userId]
+      [notificationId, userId],
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Notification not found or not authorized.' });
+      return res
+        .status(404)
+        .json({error: 'Notification not found or not authorized.'});
     }
 
-    res.json({ success: true, message: 'Notification deleted.' });
+    res.json({success: true, message: 'Notification deleted.'});
   } catch (err) {
     console.error('Delete notification error:', err);
-    res.status(500).json({ error: 'Failed to delete notification.' });
+    res.status(500).json({error: 'Failed to delete notification.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 // DELETE ALL NOTIFICATIONS FOR A USER
 app.delete('/api/notifications/:userId', async (req, res) => {
-  const { userId } = req.params;
+  const {userId} = req.params;
 
   let connection;
   try {
@@ -1360,15 +1650,20 @@ app.delete('/api/notifications/:userId', async (req, res) => {
 
     const [result] = await connection.query(
       'DELETE FROM notifications WHERE user_id = ?',
-      [userId]
+      [userId],
     );
 
-    res.json({ success: true, message: `${result.affectedRows} notifications deleted.` });
+    res.json({
+      success: true,
+      message: `${result.affectedRows} notifications deleted.`,
+    });
   } catch (err) {
     console.error('Delete all notifications error:', err);
-    res.status(500).json({ error: 'Failed to delete all notifications.' });
+    res.status(500).json({error: 'Failed to delete all notifications.'});
   } finally {
-    if (connection) {connection.release();}
+    if (connection) {
+      connection.release();
+    }
   }
 });
 

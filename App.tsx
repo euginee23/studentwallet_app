@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 
 import WelcomeScreen from './src/screens/Welcome';
 import LoginScreen from './src/screens/Login';
@@ -29,7 +30,9 @@ import HeaderProfileButton from './src/components/HeaderProfile';
 import HeaderNotificationsButton from './src/components/HeaderNotificationsButton';
 import {getUser, getToken} from './src/utils/authStorage';
 
-import { configurePushNotifications } from './src/config/PushNotificationService';
+import NoInternetModal from './src/components/NoInternetModal';
+
+import {configurePushNotifications} from './src/config/PushNotificationService';
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +54,16 @@ function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('');
   const navigationRef = useNavigationContainerRef();
+
+  const [isConnected, setIsConnected] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(Boolean(state.isConnected) && Boolean(state.isInternetReachable));
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     configurePushNotifications();
@@ -255,6 +268,8 @@ function App(): React.JSX.Element {
             <BottomNavigation navigationRef={navigationRef} />
           )}
       </View>
+
+      <NoInternetModal visible={!isConnected} />
     </>
   );
 }
