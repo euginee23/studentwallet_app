@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {getUser} from '../utils/authStorage';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -36,41 +37,40 @@ export default function ProfileScreen() {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      const localUser = await getUser();
+      if (!localUser?.user_id) return;
+
+      const response = await fetch(
+        `${process.env.API_BASE_URL}/api/profile/${localUser.user_id}`,
+      );
+      const result = await response.json();
+
+      if (!response.ok)
+        throw new Error(result.error || 'Failed to fetch profile');
+
+      setUser(result.user);
+      setFirstName(result.user.first_name || '');
+      setMiddleName(result.user.middle_name || '');
+      setLastName(result.user.last_name || '');
+      setEmail(result.user.email || '');
+      setContactNumber(result.user.contact_number || '');
+      setOriginalUsername(result.user.username || '');
+
+      if (result.image) setProfileImage(result.image);
+    } catch (err) {
+      console.error('Profile fetch error:', err);
+      Alert.alert('Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const localUser = await getUser();
-        if (!localUser?.user_id) {
-          return;
-        }
-
-        const response = await fetch(
-          `${process.env.API_BASE_URL}/api/profile/${localUser.user_id}`,
-        );
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to fetch profile data.');
-        }
-
-        setUser(result.user);
-        setFirstName(result.user.first_name || '');
-        setMiddleName(result.user.middle_name || '');
-        setLastName(result.user.last_name || '');
-        setEmail(result.user.email || '');
-        setContactNumber(result.user.contact_number || '');
-        setOriginalUsername(result.user.username || '');
-
-        if (result.image) {
-          setProfileImage(result.image);
-        }
-      } catch (err) {
-        console.error('Profile fetch error:', err);
-        Alert.alert('Failed to load profile');
-      }
-    };
-
     fetchUserData();
   }, []);
 
@@ -120,6 +120,7 @@ export default function ProfileScreen() {
       Alert.alert('Profile updated successfully!');
       setIsEditing(false);
       setIsLoginEditing(false);
+      await fetchUserData();
     } catch (err) {
       console.error('Update error:', err);
       Alert.alert('Failed to update profile.');
@@ -199,6 +200,7 @@ export default function ProfileScreen() {
         throw new Error(result.error || 'Failed to update password');
       }
       Alert.alert('Password updated successfully!');
+      await fetchUserData();
     } catch (err) {
       console.error('Password update error:', err);
       Alert.alert('Failed to update password.');
@@ -240,6 +242,14 @@ export default function ProfileScreen() {
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <ActivityIndicator size="large" color="#4caf50" />
+      </View>
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.profileHeader}>
@@ -280,6 +290,7 @@ export default function ProfileScreen() {
                   Alert.alert('Profile image updated successfully!');
                   setProfileImage(selectedImage);
                   setSelectedImage(null);
+                  await fetchUserData();
                 } catch (err) {
                   console.error(err);
                   Alert.alert('Failed to upload profile image.');
