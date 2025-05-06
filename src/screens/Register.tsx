@@ -131,6 +131,7 @@ export default function RegisterScreen({navigation}: any) {
       {/* Personal Info */}
       <TextInput
         placeholder="First Name"
+        placeholderTextColor="black"
         style={styles.input}
         value={firstName}
         onChangeText={setFirstName}
@@ -139,6 +140,7 @@ export default function RegisterScreen({navigation}: any) {
 
       <TextInput
         placeholder="Middle Name (Optional)"
+        placeholderTextColor="black"
         style={styles.input}
         value={middleName}
         onChangeText={setMiddleName}
@@ -146,6 +148,7 @@ export default function RegisterScreen({navigation}: any) {
 
       <TextInput
         placeholder="Last Name"
+        placeholderTextColor="black"
         style={styles.input}
         value={lastName}
         onChangeText={setLastName}
@@ -162,6 +165,7 @@ export default function RegisterScreen({navigation}: any) {
         </TouchableOpacity>
         <TextInput
           placeholder="Email"
+          placeholderTextColor="black"
           style={styles.emailInput}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -177,6 +181,7 @@ export default function RegisterScreen({navigation}: any) {
         </View>
         <TextInput
           placeholder="9123456789"
+          placeholderTextColor="black"
           style={styles.phoneInput}
           keyboardType="number-pad"
           maxLength={10}
@@ -200,6 +205,7 @@ export default function RegisterScreen({navigation}: any) {
 
       <TextInput
         placeholder="Username"
+        placeholderTextColor="black"
         style={styles.input}
         autoCapitalize="none"
         value={username}
@@ -210,6 +216,7 @@ export default function RegisterScreen({navigation}: any) {
       <View style={styles.passwordContainer}>
         <TextInput
           placeholder="Password"
+          placeholderTextColor="black"
           style={styles.passwordInput}
           secureTextEntry={!showPassword}
           value={password}
@@ -228,6 +235,7 @@ export default function RegisterScreen({navigation}: any) {
       <View style={styles.passwordContainer}>
         <TextInput
           placeholder="Confirm Password"
+          placeholderTextColor="black"
           style={styles.passwordInput}
           secureTextEntry={!showConfirmPassword}
           value={confirmPassword}
@@ -319,6 +327,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     padding: 12,
+    color: 'black',
   },
   toggleButton: {
     paddingHorizontal: 12,

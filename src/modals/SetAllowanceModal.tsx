@@ -165,6 +165,7 @@ export default function SetAllowanceModal({
           <TextInput
             style={styles.input}
             placeholder="Allowance (₱)"
+            placeholderTextColor="black"
             keyboardType="numeric"
             value={allowance}
             onChangeText={onChangeAllowance}
@@ -215,6 +216,7 @@ export default function SetAllowanceModal({
           <TextInput
             style={[styles.input, {backgroundColor: '#f3f3f3'}]}
             placeholder="Limit (computed)"
+            placeholderTextColor="black"
             value={limit}
             editable={false}
           />
@@ -320,6 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginBottom: 4,
+    color: 'black',
   },
   sliderLabel: {
     fontSize: 13,

@@ -60,6 +60,7 @@ export default function LoginScreen({navigation}: any) {
 
       <TextInput
         placeholder="Username"
+        placeholderTextColor="black"
         style={styles.input}
         autoCapitalize="none"
         value={username}
@@ -68,6 +69,7 @@ export default function LoginScreen({navigation}: any) {
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder="Password"
+          placeholderTextColor="black"
           style={styles.inputField}
           secureTextEntry={!showPassword}
           value={password}
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     borderRadius: 8,
+    color: 'black',
   },
   button: {
     backgroundColor: '#4caf50',
@@ -143,6 +146,7 @@ const styles = StyleSheet.create({
   inputField: {
     flex: 1,
     height: '100%',
+    color: 'black',
   },
   toggleText: {
     color: '#007bff',

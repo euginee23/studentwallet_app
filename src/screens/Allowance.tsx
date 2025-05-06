@@ -106,6 +106,11 @@ export default function AllowanceScreen() {
           );
           setActiveAllowanceId(active.allowance_id);
         } else {
+          await sendLocalNotification(
+            'No Active Allowance!',
+            'You currently have no active allowance. Set one to start tracking your expenses.',
+          );
+
           setAllowance(0);
           setLimit(0);
           setStartDate('');
@@ -127,12 +132,6 @@ export default function AllowanceScreen() {
     try {
       if (!activeAllowanceId) {
         setTransactions([]);
-
-        await sendLocalNotification(
-          'No Active Allowance!',
-          'You currently have no active allowance. Set one to start tracking your expenses.',
-        );
-
         return;
       }
 

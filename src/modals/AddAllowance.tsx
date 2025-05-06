@@ -37,6 +37,7 @@ export default function AddAllowanceModal({
         <TextInput
           style={styles.input}
           keyboardType="numeric"
+          placeholderTextColor="black"
           value={amount}
           editable={!loading}
           onChangeText={onChangeAmount}

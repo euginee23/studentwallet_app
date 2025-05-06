@@ -257,6 +257,7 @@ export default function AddExpenseModal({
             <TextInput
               style={styles.categoryInput}
               placeholder="New Category"
+              placeholderTextColor="black"
               value={newCategory}
               onChangeText={setNewCategory}
             />
@@ -372,6 +373,7 @@ export default function AddExpenseModal({
         <TextInput
           style={styles.input}
           placeholder="₱ Amount"
+          placeholderTextColor="black"
           keyboardType="numeric"
           value={amount}
           onChangeText={onChangeAmount}
@@ -380,7 +382,8 @@ export default function AddExpenseModal({
         <Text style={styles.sectionLabel}>Description</Text>
         <TextInput
           style={[styles.input, styles.descriptionInput]}
-          placeholder="Add a short note"
+          placeholder="What is your expense?"
+          placeholderTextColor="black"
           multiline
           numberOfLines={3}
           value={description}
