@@ -139,6 +139,60 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// VERIFY REGISTRATION CODE
+app.post('/api/verify', async (req, res) => {
+  const {email, code} = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({error: 'Email and code are required.'});
+  }
+
+  let connection;
+  try {
+    connection = await db.promise().getConnection();
+
+    const [users] = await connection.query(
+      'SELECT user_id FROM users WHERE email = ?',
+      [email],
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({error: 'User not found.'});
+    }
+
+    const userId = users[0].user_id;
+
+    const [codes] = await connection.query(
+      `SELECT verification_code FROM verification_codes 
+       WHERE user_id = ? AND verification_type = 'register'
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId],
+    );
+
+    if (codes.length === 0) {
+      return res.status(400).json({error: 'No verification code found.'});
+    }
+
+    const latestCode = codes[0].verification_code;
+
+    if (latestCode !== code.trim().toUpperCase()) {
+      return res.status(400).json({error: 'Invalid verification code.'});
+    }
+
+    await connection.query(
+      'UPDATE users SET is_verified = 1 WHERE user_id = ?',
+      [userId],
+    );
+
+    res.json({success: true, message: 'Account successfully verified.'});
+  } catch (err) {
+    console.error('Verify registration error:', err);
+    res.status(500).json({error: 'Verification failed.'});
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 // CHECK EXISTING USERS OR UPDATE UNVERIFIED
 app.post('/api/check-user', async (req, res) => {
   const {

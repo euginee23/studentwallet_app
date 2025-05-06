@@ -181,7 +181,7 @@ export default function RegisterScreen({navigation}: any) {
         </View>
         <TextInput
           placeholder="9123456789"
-          placeholderTextColor="black"
+          placeholderTextColor="gray"
           style={styles.phoneInput}
           keyboardType="number-pad"
           maxLength={10}
